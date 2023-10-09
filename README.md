@@ -36,12 +36,22 @@ kram <namespace>
 Application will display the resource usage and limits for pods within the specified namespace.
 
 ## Output
-The application outputs the following metrics in a tabular format:
-|       Namespace       |  Pods  | CPU Usage  | CPU Request | CPU Limit   | Mem Usage | Mem Request | Mem Limit   |
-|-----------------------|--------|------------|-------------|-------------|-----------|-------------|-------------|
+The application outputs (kram) the following metrics in a tabular format:
+┌───────────────────────┬────────┬────────────┬─────────────┬─────────────┬───────────┬─────────────┬─────────────┐
+│       Namespace       │  Pods  │ CPU Usage  │ CPU Request │ CPU Limit   │ Mem Usage │ Mem Request │ Mem Limit   │
+├───────────────────────┼────────┼────────────┼─────────────┼─────────────┼───────────┼─────────────┼─────────────┤
 | example-namespace     |  5     | 100 Mi     | 200 Mi      | 300 Mi      | 500 Mo    | 600 Mo      | 700 Mo      |
 | another-namespace     |  3     | 50 Mi      | 100 Mi      | 150 Mi      | 250 Mo    | 300 Mo      | 350 Mo      |
 | ...                   | ...    | ...        | ...         | ...         | ...       | ...         | ...         |
+
+The application outputs (kram networking) the following metrics in a tabular format:
+Metrics for Namespace: networking
+┌──────────────────────────────────────────────┬───────────────────────────────┬───────────┬─────────────┬───────────┬───────────┬─────────────┬───────────┐
+│ Pods                                         │ Container                     │ CPU Usage │ CPU Request │ CPU Limit │ Mem Usage │ Mem Request │ Mem Limit │
+├──────────────────────────────────────────────┼───────────────────────────────┼───────────┼─────────────┼───────────┼───────────┼─────────────┼───────────┤
+│ ingress-nginx-controller-974dcfff4-7hcbv     │ controller                    │ 3 Mi      │ 1000 Mi     │ 1000 Mi   │ 142 Mo    │ 512 Mo      │ 1024 Mo   │
+│ ingress-nginx-controller-974dcfff4-mb5fv     │ controller                    │ 3 Mi      │ 1000 Mi     │ 1000 Mi   │ 134 Mo    │ 512 Mo      │ 1024 Mo   │
+| ...                                          | ...                           | ...       | ...         | ...       | ...       | ...         | ...       |
 
 ## Demo
 [![GoKram](https://github.com/VegaCorporoptions/Kram/assets/116181531/3e3d5abb-db85-4f58-8842-7f4d509d7fbe)](https://github.com/VegaCorporoptions/Kram/blob/main/GoKram.gif?raw=true)
