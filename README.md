@@ -43,8 +43,9 @@ The application outputs (kram) the following metrics in a tabular format:
 | another-namespace     |  3     | 50 Mi      | 100 Mi      | 150 Mi      | 250 Mo    | 300 Mo      | 350 Mo      |
 | ...                   | ...    | ...        | ...         | ...         | ...       | ...         | ...         |
 
-
+<br>
 The application outputs (kram networking) the following metrics in a tabular format:
+
 Metrics for Namespace: networking
 | Pods                                         | Container                     | CPU Usage | CPU Request | CPU Limit | Mem Usage | Mem Request | Mem Limit |
 |----------------------------------------------|-------------------------------|-----------|-------------|-----------|-----------|-------------|-----------|
