@@ -44,8 +44,7 @@ The application outputs the following metrics in a tabular format:
 | ...                   | ...    | ...        | ...         | ...         | ...       | ...         | ...         |
 
 ## Demo
-
-![GoKram](https://github.com/VegaCorporoptions/Kram/assets/116181531/3e3d5abb-db85-4f58-8842-7f4d509d7fbe)
+[![GoKram](https://github.com/VegaCorporoptions/Kram/assets/116181531/3e3d5abb-db85-4f58-8842-7f4d509d7fbe)](https://github.com/VegaCorporoptions/Kram/blob/main/GoKram.gif?raw=true)
 
 ## License
 This project is licensed under the MIT License. See the LICENSE file for details.
