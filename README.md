@@ -6,7 +6,7 @@ This Go application retrieves resource metrics for Kubernetes namespaces and pod
 
 Before using this application, ensure you have the following prerequisites:
 
-- Go installed on your system.
+- Go installed on your system. (to build)
 - `kubectl` configured with access to your Kubernetes cluster.
 
 ## Installation
