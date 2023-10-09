@@ -37,20 +37,19 @@ Application will display the resource usage and limits for pods within the speci
 
 ## Output
 The application outputs (kram) the following metrics in a tabular format:
-┌───────────────────────┬────────┬────────────┬─────────────┬─────────────┬───────────┬─────────────┬─────────────┐
-│       Namespace       │  Pods  │ CPU Usage  │ CPU Request │ CPU Limit   │ Mem Usage │ Mem Request │ Mem Limit   │
-├───────────────────────┼────────┼────────────┼─────────────┼─────────────┼───────────┼─────────────┼─────────────┤
+|       Namespace       |  Pods  | CPU Usage  | CPU Request | CPU Limit   | Mem Usage | Mem Request | Mem Limit   |
+|-----------------------|--------|------------|-------------|-------------|-----------|-------------|-------------|
 | example-namespace     |  5     | 100 Mi     | 200 Mi      | 300 Mi      | 500 Mo    | 600 Mo      | 700 Mo      |
 | another-namespace     |  3     | 50 Mi      | 100 Mi      | 150 Mi      | 250 Mo    | 300 Mo      | 350 Mo      |
 | ...                   | ...    | ...        | ...         | ...         | ...       | ...         | ...         |
 
+
 The application outputs (kram networking) the following metrics in a tabular format:
 Metrics for Namespace: networking
-┌──────────────────────────────────────────────┬───────────────────────────────┬───────────┬─────────────┬───────────┬───────────┬─────────────┬───────────┐
-│ Pods                                         │ Container                     │ CPU Usage │ CPU Request │ CPU Limit │ Mem Usage │ Mem Request │ Mem Limit │
-├──────────────────────────────────────────────┼───────────────────────────────┼───────────┼─────────────┼───────────┼───────────┼─────────────┼───────────┤
-│ ingress-nginx-controller-974dcfff4-7hcbv     │ controller                    │ 3 Mi      │ 1000 Mi     │ 1000 Mi   │ 142 Mo    │ 512 Mo      │ 1024 Mo   │
-│ ingress-nginx-controller-974dcfff4-mb5fv     │ controller                    │ 3 Mi      │ 1000 Mi     │ 1000 Mi   │ 134 Mo    │ 512 Mo      │ 1024 Mo   │
+| Pods                                         | Container                     | CPU Usage | CPU Request | CPU Limit | Mem Usage | Mem Request | Mem Limit |
+|----------------------------------------------|-------------------------------|-----------|-------------|-----------|-----------|-------------|-----------|
+| ingress-nginx-controller-974dcfff4-7hcbv     | controller                    | 3 Mi      | 1000 Mi     | 1000 Mi   | 142 Mo    | 512 Mo      | 1024 Mo   |
+| ingress-nginx-controller-974dcfff4-mb5fv     | controller                    | 3 Mi      | 1000 Mi     | 1000 Mi   | 134 Mo    | 512 Mo      | 1024 Mo   |
 | ...                                          | ...                           | ...       | ...         | ...       | ...       | ...         | ...       |
 
 ## Demo
