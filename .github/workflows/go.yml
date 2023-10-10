@@ -20,13 +20,13 @@ jobs:
       with:
         go-version: '1.20'
 
-    - name: Build
+    - name: Build Go
       run: |
         GOOS=windows GOARCH=386 go build -v -o kram-386.exe
         GOOS=linux GOARCH=386 go build -v -o kram-386-linux
 
-    - name: Get Release
-      id: get_current_release
+    - name: Get Last Release
+      id: get_last_release
       uses: joutvhu/get-release@v1.0.2
       with:
         # Should get latest release?
@@ -35,10 +35,10 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ github.token }}
 
-    - name: Increment last tag version
+    - name: Increment Last Tag Version
       id: increment_tag
       run: |
-        $version = "${{ steps.get_current_release.outputs.tag_name }}"
+        $version = "${{ steps.get_last_release.outputs.tag_name }}"
         $versionParts = $version -split '\.'
         $versionParts[-1] = [int]$versionParts[-1] + 1
         $newVersion = $versionParts -join '.'
@@ -46,7 +46,7 @@ jobs:
         Write-Output "::set-output name=newtagversion::$newVersion"
       shell: pwsh
 
-    - name: release
+    - name: Create Release
       uses: actions/create-release@v1
       id: create_release
       with:
@@ -58,7 +58,7 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ github.token }}
         
-    - name: upload windows artifact
+    - name: Upload Windows Artifact
       uses: actions/upload-release-asset@v1
       env:
         GITHUB_TOKEN: ${{ github.token }}
@@ -68,7 +68,7 @@ jobs:
         asset_name: kram-386.exe
         asset_content_type: application/gzip
 
-    - name: upload linux artifact
+    - name: Upload Linux Artifact
       uses: actions/upload-release-asset@v1
       env:
         GITHUB_TOKEN: ${{ github.token }}
