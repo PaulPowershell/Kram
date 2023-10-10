@@ -31,17 +31,24 @@ jobs:
       with:
         path: ./kram
 
-    - name: Upload to Release Action
-      # You may pin to the exact commit or the version.
-      # uses: Shopify/upload-to-release@9942a4c936dab172f7101dcc7dc20528ea949102
-      env:
-          API_TOKEN_GITHUB: ${{ secrets.ReposTokenAccess }}
-      uses: Shopify/upload-to-release@v1.0.1
+    - name: release
+      uses: actions/create-release@v1
+      id: create_release
       with:
-        # Artifact name
-        name: kram
-        # Path to the file to upload
-        path: ./
-        # secrets.GITHUB_TOKEN
-        repo-token: ${{ secrets.ReposTokenAccess }}
-      
+        draft: false
+        prerelease: false
+        release_name: ${{ steps.version.outputs.version }}
+        tag_name: ${{ github.ref }}
+        body_path: CHANGELOG.md
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
+        
+    - name: upload windows artifact
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ./kram
+        asset_name: kram.exe
+        asset_content_type: application/gzip
