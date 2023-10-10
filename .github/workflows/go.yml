@@ -46,12 +46,12 @@ jobs:
 
     - name: test increment tag
       run: |
-        version=${{ steps.get_current_release.outputs.tag_name }}
-        IFS='.' read -ra version_parts <<< "$version"
-        ((version_parts[${#version_parts[@]}-1]++))
-        new_version=$(IFS='.'; echo "${version_parts[*]}")
-        echo "New Version: $new_version"
-
+        $version = ${{ steps.get_current_release.outputs.tag_name }}
+        $versionParts = $version -split '\.'
+        $versionParts[-1] = [int]$versionParts[-1] + 1
+        $newVersion = $versionParts -join '.'
+        Write-Host "New Version: $newVersion"
+      shell: pwsh
 
     # - name: release
     #   uses: actions/create-release@v1
