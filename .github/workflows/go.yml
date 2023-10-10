@@ -52,6 +52,7 @@ jobs:
         $versionParts[-1] = [int]$versionParts[-1] + 1
         $newVersion = $versionParts -join '.'
         Write-Output "$newVersion"
+        $env:GITHUB_OUTPUT = $newVersion
       shell: pwsh
 
     - name: test new tag output
