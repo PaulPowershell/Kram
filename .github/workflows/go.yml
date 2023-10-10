@@ -23,7 +23,7 @@ jobs:
     - name: Build
       run: |
         GOOS=windows GOARCH=386 go build -v -o kram-amd64.exe
-        GOOS=darwin GOARCH=arm go build -v -o kram-amd64-darwin
+        GOOS=darwin GOARCH=386 go build -v -o kram-386-darwin
 
     - name: Get Release
       id: get_current_release
@@ -74,6 +74,6 @@ jobs:
         GITHUB_TOKEN: ${{ github.token }}
       with:
         upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: ./kram-arm-darwin
-        asset_name: kram-arm-darwin
+        asset_path: ./kram-386-darwin
+        asset_name: kram-386-darwin
         asset_content_type: application/gzip
