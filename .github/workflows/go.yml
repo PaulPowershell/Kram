@@ -51,7 +51,7 @@ jobs:
         $versionParts = $version -split '\.'
         $versionParts[-1] = [int]$versionParts[-1] + 1
         $newVersion = $versionParts -join '.'
-        Write-Ouput "$newVersion"
+        Write-Output "$newVersion"
       shell: pwsh
 
     - name: test new tag output
