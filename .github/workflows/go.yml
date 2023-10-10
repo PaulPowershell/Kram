@@ -25,14 +25,19 @@ jobs:
 
     - name: check file
       run: ls -l
+      
+    - name: Upload a Build Artifact
+      uses: actions/upload-artifact@v3.1.3
+      with:
+        path: ./kram
 
-  publish:
-    needs: build
-    runs-on: ubuntu-latest
-    steps:
-      - name: Upload a Build Artifact
-        uses: actions/upload-artifact@v3.1.3
-        with:
-          path: .\kram
-          # The desired behavior if no files are found using the provided path.
+  # publish:
+  #   needs: build
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - name: Upload a Build Artifact
+  #       uses: actions/upload-artifact@v3.1.3
+  #       with:
+  #         path: .\kram
+  #         # The desired behavior if no files are found using the provided path.
       
