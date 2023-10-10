@@ -56,7 +56,7 @@ jobs:
       shell: pwsh
 
     - name: test new tag output
-      run: new tag is ${{ steps.increment_tag.outputs.newtagversion }}
+      run: echo new tag is ${{ steps.increment_tag.outputs.newtagversion }}
 
     # - name: release
     #   uses: actions/create-release@v1
