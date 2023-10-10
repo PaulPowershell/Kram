@@ -46,17 +46,14 @@ jobs:
 
     - name: test increment tag
       run: |
+        #!/bin/bash
         version=${{ steps.get_current_release.outputs.tag_name }}
-        
         # Divisez la version en parties en utilisant le délimiteur '.'
         IFS='.' read -ra version_parts <<< "$version"
-        
         # Incrémente la dernière partie de la version
         ((version_parts[${#version_parts[@]}-1]++))
-        
         # Reconstituez la version mise à jour en utilisant le délimiteur '.'
         new_version=$(IFS='.'; echo "${version_parts[*]}")
-        
         echo "$new_version"
 
 
