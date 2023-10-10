@@ -42,7 +42,13 @@ jobs:
         GITHUB_TOKEN: ${{ github.token }}
 
     - name: echo name release
-      run: echo test ${{ steps.get_current_release.outputs.tag_name }}
+      run: echo last relaase tag ${{ steps.get_current_release.outputs.tag_name }}
+
+    - name: test increment tag
+      run: |
+        version=${{ steps.get_current_release.outputs.tag_name }}
+        new_version=$(echo "$version" | awk -F. '{$NF++;OFS="."}1')
+        echo "$new_version"
 
     # - name: release
     #   uses: actions/create-release@v1
