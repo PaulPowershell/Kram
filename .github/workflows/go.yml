@@ -41,7 +41,7 @@ jobs:
         GITHUB_TOKEN: ${{ github.token }}
 
     - name: echo name release
-      run: echo ${{ steps.get_release.outputs.tag_name }}
+      run: echo test ${{ steps.get_release.outputs.tag_name }}
 
     # - name: release
     #   uses: actions/create-release@v1
