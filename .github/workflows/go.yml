@@ -22,7 +22,7 @@ jobs:
 
     - name: Build
       run: |
-        GOOS=windows GOARCH=386 go build -v -o kram-amd64.exe
+        GOOS=windows GOARCH=386 go build -v -o kram-386.exe
         GOOS=linux GOARCH=386 go build -v -o kram-386-linux
 
     - name: Get Release
