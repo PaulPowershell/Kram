@@ -41,7 +41,7 @@ jobs:
     # - name: echo name release
     #   run: echo last relaase tag ${{ steps.get_current_release.outputs.tag_name }}
 
-    - name: test increment tag
+    - name: Increment last tag version
       id: increment_tag
       run: |
         $version = "${{ steps.get_current_release.outputs.tag_name }}"
@@ -73,7 +73,7 @@ jobs:
         GITHUB_TOKEN: ${{ github.token }}
       with:
         upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: .
+        asset_path: ./kram-amd64.exe
         asset_name: kram-amd64.exe
         asset_content_type: application/gzip
 
@@ -83,6 +83,6 @@ jobs:
         GITHUB_TOKEN: ${{ github.token }}
       with:
         upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: .
+        asset_path: ./kram-amd64-darwin
         asset_name: kram-amd64-darwin
         asset_content_type: application/gzip
