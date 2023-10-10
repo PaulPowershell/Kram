@@ -22,11 +22,8 @@ jobs:
 
     - name: Build
       run: |
-        GOOS=windows GOARCH=amd64 go build -v -o kram-amd64.exe
-        GOOS=darwin GOARCH=amd64 go build -v -o kram-amd64-darwin
-
-    # - name: check file
-    #   run: ls -l
+        GOOS=windows GOARCH=386 go build -v -o kram-amd64.exe
+        GOOS=darwin GOARCH=386 go build -v -o kram-amd64-darwin
 
     - name: Get Release
       id: get_current_release
@@ -38,9 +35,6 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ github.token }}
 
-    # - name: echo name release
-    #   run: echo last relaase tag ${{ steps.get_current_release.outputs.tag_name }}
-
     - name: Increment last tag version
       id: increment_tag
       run: |
@@ -51,9 +45,6 @@ jobs:
         Write-Host "$newVersion"
         Write-Output "::set-output name=newtagversion::$newVersion"
       shell: pwsh
-
-    # - name: test new tag output
-    #   run: echo new tag is ${{ steps.increment_tag.outputs.newtagversion }}
 
     - name: release
       uses: actions/create-release@v1
