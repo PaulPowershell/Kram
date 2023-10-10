@@ -22,8 +22,8 @@ jobs:
 
     - name: Build
       run: |
-        GOOS=windows GOARCH=amd64 go build -v -o kram-amd64.exe app.go
-        GOOS=darwin GOARCH=amd64 go build -v -o kram-amd64-darwin app.go
+        GOOS=windows GOARCH=amd64 go build -v -o kram-amd64.exe
+        GOOS=darwin GOARCH=amd64 go build -v -o kram-amd64-darwin
 
     - name: check file
       run: ls -l
