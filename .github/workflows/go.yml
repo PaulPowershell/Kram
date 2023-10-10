@@ -45,13 +45,17 @@ jobs:
       run: echo last relaase tag ${{ steps.get_current_release.outputs.tag_name }}
 
     - name: test increment tag
+      id: increment_tag
       run: |
         $version = "${{ steps.get_current_release.outputs.tag_name }}"
         $versionParts = $version -split '\.'
         $versionParts[-1] = [int]$versionParts[-1] + 1
         $newVersion = $versionParts -join '.'
-        Write-Host "New Version: $newVersion"
+        Write-Ouput "$newVersion"
       shell: pwsh
+
+    - name: test new tag output
+      run: new tag is ${{ steps.increment_tag.outputs }}
 
     # - name: release
     #   uses: actions/create-release@v1
