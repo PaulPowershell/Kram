@@ -36,8 +36,12 @@ jobs:
       with:
         # Should get latest release?
         latest: true
+        debug: true
       env:
         GITHUB_TOKEN: ${{ github.token }}
+
+    - name: echo name release
+      run: echo ${{ steps.get_release.outputs.tag_name }}
 
     # - name: release
     #   uses: actions/create-release@v1
