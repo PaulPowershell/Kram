@@ -25,8 +25,8 @@ jobs:
         GOOS=windows GOARCH=amd64 go build -v -o kram-amd64.exe
         GOOS=darwin GOARCH=amd64 go build -v -o kram-amd64-darwin
 
-    - name: check file
-      run: ls -l
+    # - name: check file
+    #   run: ls -l
 
     - name: Get Release
       id: get_current_release
@@ -38,8 +38,8 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ github.token }}
 
-    - name: echo name release
-      run: echo last relaase tag ${{ steps.get_current_release.outputs.tag_name }}
+    # - name: echo name release
+    #   run: echo last relaase tag ${{ steps.get_current_release.outputs.tag_name }}
 
     - name: test increment tag
       id: increment_tag
@@ -52,8 +52,8 @@ jobs:
         Write-Output "::set-output name=newtagversion::$newVersion"
       shell: pwsh
 
-    - name: test new tag output
-      run: echo new tag is ${{ steps.increment_tag.outputs.newtagversion }}
+    # - name: test new tag output
+    #   run: echo new tag is ${{ steps.increment_tag.outputs.newtagversion }}
 
     - name: release
       uses: actions/create-release@v1
@@ -73,6 +73,6 @@ jobs:
         GITHUB_TOKEN: ${{ github.token }}
       with:
         upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: ./kram
+        asset_path: .
         asset_name: kram-amd64.exe,kram-amd64-darwin
         asset_content_type: application/gzip
