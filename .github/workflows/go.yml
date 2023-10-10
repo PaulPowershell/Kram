@@ -46,7 +46,7 @@ jobs:
 
     - name: test increment tag
       run: |
-        $version = ${{ steps.get_current_release.outputs.tag_name }}
+        $version = "${{ steps.get_current_release.outputs.tag_name }}"
         $versionParts = $version -split '\.'
         $versionParts[-1] = [int]$versionParts[-1] + 1
         $newVersion = $versionParts -join '.'
