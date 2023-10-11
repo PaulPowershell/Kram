@@ -24,7 +24,7 @@ jobs:
       uses: actions/cache@v2
       with:
         path: ./kram-386.exe
-        key: ${{ runner.os }}-my-cache-key-1
+        key: ${{ runner.os }}-my-cache-key
 
 
   build-linux:
@@ -45,7 +45,7 @@ jobs:
       uses: actions/cache@v2
       with:
         path: ./kram-386-linux
-        key: ${{ runner.os }}-my-cache-key-2
+        key: ${{ runner.os }}-my-cache-key
 
   create-release:
     runs-on: ubuntu-latest
@@ -54,18 +54,26 @@ jobs:
     steps:
     - uses: actions/checkout@v3
 
+    # - name: Restore Cache
+    #   uses: actions/cache@v2
+    #   with:
+    #     path: ./kram-386.exe
+    #     key: ${{ runner.os }}-my-cache-key-1
+
+    # - name: Restore Cache
+    #   uses: actions/cache@v2
+    #   with:
+    #     path: ./kram-386-linux
+    #     key: ${{ runner.os }}-my-cache-key-2
+    
     - name: Restore Cache
       uses: actions/cache@v2
       with:
-        path: ./kram-386.exe
-        key: ${{ runner.os }}-my-cache-key-1
-
-    - name: Restore Cache
-      uses: actions/cache@v2
-      with:
-        path: ./kram-386-linux
-        key: ${{ runner.os }}-my-cache-key-2
-
+        path: |
+          ./kram-386.exe
+          ./kram-386-linux
+        key: ${{ runner.os }}-my-cache-key
+      
     - name: Get Last Release
       id: get_last_release
       uses: joutvhu/get-release@v1.0.2
