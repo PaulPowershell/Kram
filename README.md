@@ -3,7 +3,7 @@
 This Go application retrieves resource metrics for Kubernetes namespaces and pods and prints them in a tabular format.
 
 ## Last Build
-[![Go Build & Release](https://github.com/VegaCorporoptions/Ksub/actions/workflows/go.yml/badge.svg)](https://github.com/VegaCorporoptions/Ksub/actions/workflows/go.yml)
+[![Go Build & Release](https://github.com/VegaCorporoptions/Kram/actions/workflows/go.yml/badge.svg)](https://github.com/VegaCorporoptions/Kram/actions/workflows/go.yml)
 
 ## Prerequisites
 
