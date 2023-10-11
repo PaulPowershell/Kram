@@ -1,4 +1,4 @@
-# Kubernetes Resource Metrics Printer
+# Kram - Kubernetes Resource Metrics Printer
 
 This Go application retrieves resource metrics for Kubernetes namespaces and pods and prints them in a tabular format.
 
