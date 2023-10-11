@@ -17,7 +17,7 @@ Before using this application, ensure you have the following prerequisites:
 1. Clone the repository to your local machine:
 
 ```bash
-git clone https://github.com/yourusername/your-repo.git
+git clone https://github.com/VegaCorporoptions/Kram
 cd your-repo
 ```
 
