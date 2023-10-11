@@ -150,22 +150,42 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ github.token }}
         
-    - name: Upload Windows Artifact
+    - name: Upload Linux32 Artifact
       uses: actions/upload-release-asset@v1
       env:
         GITHUB_TOKEN: ${{ github.token }}
       with:
         upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: ./kram.*
-        asset_name: kram.*
+        asset_path: ./kram-386-linux
+        asset_name: kram-386-linux
         asset_content_type: application/gzip
 
-    # - name: Upload Linux Artifact
-    #   uses: actions/upload-release-asset@v1
-    #   env:
-    #     GITHUB_TOKEN: ${{ github.token }}
-    #   with:
-    #     upload_url: ${{ steps.create_release.outputs.upload_url }}
-    #     asset_path: ./kram-386-linux
-    #     asset_name: kram-386-linux
-    #     asset_content_type: application/gzip
+    - name: Upload Linux64 Artifact
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ./kram-amd64-linux
+        asset_name: kram-amd64-linux
+        asset_content_type: application/gzip
+
+    - name: Upload Windows32 Artifact
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ./kram-386.exe
+        asset_name: kram-386.exe
+        asset_content_type: application/gzip
+
+    - name: Upload Windows64 Artifact
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ./kram-amd64.exe
+        asset_name: kram-amd64.exe
+        asset_content_type: application/gzip
