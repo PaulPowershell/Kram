@@ -27,7 +27,7 @@ jobs:
     - name: Cache Dependencies
       uses: actions/cache@v2
       with:
-        path: ./
+        path: ./kram-386.exe
         key: ${{ runner.os }}-my-cache-key-1
 
 
@@ -48,7 +48,7 @@ jobs:
     - name: Cache Dependencies
       uses: actions/cache@v2
       with:
-        path: ./
+        path: ./kram-386-linux
         key: ${{ runner.os }}-my-cache-key-2
 
   create-release:
@@ -61,13 +61,13 @@ jobs:
     - name: Restore Cache
       uses: actions/cache@v2
       with:
-        path: ./
+        path: ./kram-386.exe
         key: ${{ runner.os }}-my-cache-key-1
 
     - name: Restore Cache
       uses: actions/cache@v2
       with:
-        path: ./
+        path: ./kram-386-linux
         key: ${{ runner.os }}-my-cache-key-2
 
     - name: Get Last Release
