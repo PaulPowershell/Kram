@@ -27,9 +27,7 @@ go build .
 ```
 
 ## Download Kram Executable
-
 You can download the executable for Kram directly from the latest release with its version. This allows you to use Kram without the need to build it yourself. Here are the steps to download the executable for your system:
-
 1. Visit the [Releases](https://github.com/VegaCorporoptions/Kram/releases) page.
 
 ## Usage
