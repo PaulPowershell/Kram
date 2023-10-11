@@ -24,8 +24,7 @@ jobs:
       uses: actions/cache@v2
       with:
         path: ./kram-386.exe
-        key: ${{ runner.os }}-my-cache-key
-
+        key: ${{ runner.os }}-my-cache-key-1
 
   build-linux:
     runs-on: ubuntu-latest
@@ -45,7 +44,7 @@ jobs:
       uses: actions/cache@v2
       with:
         path: ./kram-386-linux
-        key: ${{ runner.os }}-my-cache-key
+        key: ${{ runner.os }}-my-cache-key-1
 
   create-release:
     runs-on: ubuntu-latest
@@ -72,7 +71,7 @@ jobs:
         path: |
           ./kram-386.exe
           ./kram-386-linux
-        key: ${{ runner.os }}-my-cache-key
+        key: ${{ runner.os }}-my-cache-key-1
       
     - name: Get Last Release
       id: get_last_release
