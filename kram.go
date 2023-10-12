@@ -43,9 +43,10 @@ func init() {
 func main() {
 	// Initialisation d'un tableau pour stocker les erreurs
 	var errorsList []error
+	// Démarre le spinner de progression
 	go goSpinner()
 
-	// Analyse des drapeaux en ligne de commande
+	// Analyse des drapeaux (arguments)
 	flag.Parse()
 	// Récupérer le namespace à partir de l'argument de ligne de commande, sinon du fichier de configuration
 	argument := flag.Arg(0)
