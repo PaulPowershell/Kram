@@ -1,4 +1,4 @@
-# Kubernetes Resource Metrics Printer
+# Kram - Kubernetes Resource Metrics Printer
 
 This Go application retrieves resource metrics for Kubernetes namespaces and pods and prints them in a tabular format.
 
@@ -17,7 +17,7 @@ Before using this application, ensure you have the following prerequisites:
 1. Clone the repository to your local machine:
 
 ```bash
-git clone https://github.com/yourusername/your-repo.git
+git clone https://github.com/VegaCorporoptions/Kram
 cd your-repo
 ```
 
@@ -25,6 +25,10 @@ Build the Go application:
 ```bash
 go build .
 ```
+
+## Download Kram Executable
+You can download the executable for Kram directly from the latest release with its version. This allows you to use Kram without the need to build it yourself. Here are the steps to download the executable for your system:
+1. Visit the [Releases](https://github.com/VegaCorporoptions/Kram/releases) page.
 
 ## Usage
 To list metrics for all namespaces, run the application without any arguments:
