@@ -76,19 +76,7 @@ func main() {
 			errorsList = append(errorsList, err)
 		}
 
-		// Imprimez les en-têtes du tableau
-		fmt.Print("\033[2K\r")
-		fmt.Println("┌───────────────────────┬────────┬────────────┬─────────────┬─────────────┬───────────┬─────────────┬─────────────┐")
-		fmt.Println("│       Namespace       │  Pods  │ CPU Usage  │ CPU Request │ CPU Limit   │ Mem Usage │ Mem Request │ Mem Limit   │")
-		fmt.Println("├───────────────────────┼────────┼────────────┼─────────────┼─────────────┼───────────┼─────────────┼─────────────┤")
-
-		// Boucle sur chaque namespace
-		for _, namespace := range namespaces.Items {
-			ListNamespaceMetrics(namespace, clientset, metricsClientset, &errorsList)
-		}
-
-		// Imprimez la ligne de délimitation du bas
-		fmt.Println("└───────────────────────┴────────┴────────────┴─────────────┴─────────────┴───────────┴─────────────┴─────────────┘")
+		ListNamespaceMetrics(namespaces.Items, clientset, metricsClientset, &errorsList)
 
 	} else {
 		// Si un argument de namespace est spécifié, afficher les valeurs request et limit de chaque pod dans le namespace.
@@ -108,60 +96,139 @@ func main() {
 	}
 }
 
-func ListNamespaceMetrics(namespace corev1.Namespace, clientset *kubernetes.Clientset, metricsClientset *metricsv.Clientset, errorsList *[]error) {
-	// Liste de tous les pods dans le namespace spécifié
-	pods, err := clientset.CoreV1().Pods(namespace.Name).List(context.TODO(), metav1.ListOptions{})
-	if err != nil {
-		*errorsList = append(*errorsList, err)
+func ListNamespaceMetrics(namespaces []corev1.Namespace, clientset *kubernetes.Clientset, metricsClientset *metricsv.Clientset, errorsList *[]error) {
+	// Créer un tableau pour stocker les données
+	var tableData [][]string
+
+	// Initialiser les colonnes avec des en-têtes
+	tableData = append(tableData, []string{"Namespace", "Pods", "CPU Usage", "CPU Request", "CPU Limit", "Mem Usage", "Mem Request", "Mem Limit"})
+
+	for _, namespace := range namespaces {
+		// Liste de tous les pods dans le namespace spécifié
+		pods, err := clientset.CoreV1().Pods(namespace.Name).List(context.TODO(), metav1.ListOptions{})
+		if err != nil {
+			*errorsList = append(*errorsList, err)
+		}
+
+		// Initialiser des variables pour stocker les données
+		var totalCPUMilliCPU int64
+		var totalCPURequestMilliCPU int64
+		var totalCPULimitMilliCPU int64
+		var totalRAMUsageMB int64
+		var totalRAMRequestMB int64
+		var totalRAMLimitMB int64
+
+		// Parcourir tous les pods dans la liste et collecter les données
+		for _, pod := range pods.Items {
+			for _, container := range pod.Spec.Containers {
+				podMetrics, err := metricsClientset.MetricsV1beta1().PodMetricses(namespace.Name).Get(context.TODO(), pod.Name, metav1.GetOptions{})
+				if err != nil {
+					*errorsList = append(*errorsList, err)
+				}
+				for _, containerMetrics := range podMetrics.Containers {
+					if containerMetrics.Name == container.Name {
+						usage := containerMetrics.Usage
+						requests := container.Resources.Requests
+						limits := container.Resources.Limits
+
+						totalCPUMilliCPU += usage.Cpu().MilliValue()
+						totalCPURequestMilliCPU += requests.Cpu().MilliValue()
+						totalCPULimitMilliCPU += limits.Cpu().MilliValue()
+						totalRAMUsageMB += usage.Memory().Value() / (1024 * 1024)
+						totalRAMRequestMB += requests.Memory().Value() / (1024 * 1024)
+						totalRAMLimitMB += limits.Memory().Value() / (1024 * 1024)
+
+					}
+				}
+			}
+		}
+		// Attribuer des metrics au valeurs (Mo/Mi)
+		cpuUsage := fmt.Sprintf("%d Mi", totalCPUMilliCPU)
+		cpuRequest := fmt.Sprintf("%d Mi", totalCPURequestMilliCPU)
+		cpuLimit := fmt.Sprintf("%d Mi", totalCPULimitMilliCPU)
+		memoryUsage := fmt.Sprintf("%d Mo", totalRAMUsageMB)
+		memoryRequest := fmt.Sprintf("%d Mo", totalRAMRequestMB)
+		memoryLimit := fmt.Sprintf("%d Mo", totalRAMLimitMB)
+
+		// Ajouter les données à la ligne du tableau
+		row := []string{namespace.Name, fmt.Sprint(len(pods.Items)), cpuUsage, cpuRequest, cpuLimit, memoryUsage, memoryRequest, memoryLimit}
+		tableData = append(tableData, row)
 	}
 
-	// Initialiser des variables pour stocker les données
-	var totalCPUMilliCPU int64
-	var totalCPURequestMilliCPU int64
-	var totalCPULimitMilliCPU int64
-	var totalRAMUsageMB int64
-	var totalRAMRequestMB int64
-	var totalRAMLimitMB int64
-
-	// Parcourir tous les pods dans la liste et collecter les données
-	for _, pod := range pods.Items {
-		for _, container := range pod.Spec.Containers {
-			podMetrics, err := metricsClientset.MetricsV1beta1().PodMetricses(namespace.Name).Get(context.TODO(), pod.Name, metav1.GetOptions{})
-			if err != nil {
-				*errorsList = append(*errorsList, err)
-			}
-			for _, containerMetrics := range podMetrics.Containers {
-				if containerMetrics.Name == container.Name {
-					usage := containerMetrics.Usage
-					requests := container.Resources.Requests
-					limits := container.Resources.Limits
-
-					totalCPUMilliCPU += usage.Cpu().MilliValue()
-					totalCPURequestMilliCPU += requests.Cpu().MilliValue()
-					totalCPULimitMilliCPU += limits.Cpu().MilliValue()
-					totalRAMUsageMB += usage.Memory().Value() / (1024 * 1024)
-					totalRAMRequestMB += requests.Memory().Value() / (1024 * 1024)
-					totalRAMLimitMB += limits.Memory().Value() / (1024 * 1024)
-
-				}
+	// Calculer la largeur maximale de chaque colonne
+	columnWidths := make([]int, len(tableData[0]))
+	for _, row := range tableData {
+		for i, cell := range row {
+			cellLength := len(cell)
+			if cellLength > columnWidths[i] {
+				columnWidths[i] = cellLength
 			}
 		}
 	}
 
-	// Attribuer des metrics au valeurs (Mo/Mi)
-	cpuUsage := fmt.Sprintf("%d Mi", totalCPUMilliCPU)
-	cpuRequest := fmt.Sprintf("%d Mi", totalCPURequestMilliCPU)
-	cpuLimit := fmt.Sprintf("%d Mi", totalCPULimitMilliCPU)
-	memoryUsage := fmt.Sprintf("%d Mo", totalRAMUsageMB)
-	memoryRequest := fmt.Sprintf("%d Mo", totalRAMRequestMB)
-	memoryLimit := fmt.Sprintf("%d Mo", totalRAMLimitMB)
-
-	total := totalCPUMilliCPU + totalCPURequestMilliCPU + totalRAMUsageMB + totalRAMRequestMB
-	// Imprimez les résultats pour ce namespace si il n'est pas vide
-	if total != 0 {
-		fmt.Print("\033[2K\r")
-		fmt.Printf("│ %-22s│ %-7d│ %-11s│ %-12s│ %-12s│ %-10s│ %-12s│ %-12s│\n", namespace.Name, len(pods.Items), cpuUsage, cpuRequest, cpuLimit, memoryUsage, memoryRequest, memoryLimit)
+	// Fonction pour imprimer une ligne de données avec délimitation
+	printDataRow := func(row []string) {
+		fmt.Print("│")
+		for i, cell := range row {
+			formatString := fmt.Sprintf(" %%-%ds │", columnWidths[i])
+			fmt.Printf(formatString, cell)
+		}
+		fmt.Println()
 	}
+
+	// Fonction pour imprimer une ligne de délimitation
+	printDelimiterRow := func() {
+		fmt.Print("├")
+		for i, width := range columnWidths {
+			fmt.Print(strings.Repeat("─", width+2))
+			if i < len(columnWidths)-1 {
+				fmt.Print("┼")
+			}
+		}
+		fmt.Println("┤")
+	}
+
+	// Fonction pour imprimer la ligne de délimitation du haut
+	printTopDelimiterRow := func() {
+		fmt.Print("┌")
+		for i, width := range columnWidths {
+			fmt.Print(strings.Repeat("─", width+2))
+			if i < len(columnWidths)-1 {
+				fmt.Print("┬")
+			}
+		}
+		fmt.Println("┐")
+	}
+
+	// Fonction pour imprimer la ligne de délimitation du bas
+	printBottomDelimiterRow := func() {
+		fmt.Print("└")
+		for i, width := range columnWidths {
+			fmt.Print(strings.Repeat("─", width+2))
+			if i < len(columnWidths)-1 {
+				fmt.Print("┴")
+			}
+		}
+		fmt.Println("┘")
+	}
+
+	// Imprimer la ligne de délimitation du haut
+	fmt.Print("\033[2K\r")
+	printTopDelimiterRow()
+
+	// Imprimer les en-têtes
+	printDataRow(tableData[0])
+
+	// Imprimer la ligne de délimitation du haut
+	printDelimiterRow()
+
+	// Imprimer les données à partir de la deuxième ligne
+	for _, row := range tableData[1:] {
+		printDataRow(row)
+	}
+
+	// Imprimer la ligne de délimitation du bas
+	printBottomDelimiterRow()
 }
 
 func printNamespaceMetrics(namespace corev1.Namespace, clientset *kubernetes.Clientset, metricsClientset *metricsv.Clientset, errorsList *[]error) {
