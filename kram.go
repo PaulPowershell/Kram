@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/schollz/progressbar/v3"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -43,11 +44,13 @@ func init() {
 func main() {
 	// Initialisation d'un tableau pour stocker les erreurs
 	var errorsList []error
+
 	// Démarre le spinner de progression
 	go goSpinner()
 
 	// Analyse des drapeaux (arguments)
 	flag.Parse()
+
 	// Récupérer le namespace à partir de l'argument de ligne de commande, sinon du fichier de configuration
 	argument := flag.Arg(0)
 
@@ -100,10 +103,19 @@ func ListNamespaceMetrics(namespaces []corev1.Namespace, clientset *kubernetes.C
 	// Créer un tableau pour stocker les données
 	var tableData [][]string
 
+	// Initialiser la bar de progression
+	bar := progressbar.NewOptions(int(len(namespaces)),
+		progressbar.OptionClearOnFinish(),
+		progressbar.OptionFullWidth(),
+	)
+
 	// Initialiser les colonnes avec des en-têtes
 	tableData = append(tableData, []string{"Namespace", "Pods", "CPU Usage", "CPU Request", "CPU Limit", "Mem Usage", "Mem Request", "Mem Limit"})
 
 	for _, namespace := range namespaces {
+		// Increment de la bar de progression
+		bar.Add(1)
+
 		// Liste de tous les pods dans le namespace spécifié
 		pods, err := clientset.CoreV1().Pods(namespace.Name).List(context.TODO(), metav1.ListOptions{})
 		if err != nil {
@@ -240,8 +252,12 @@ func printNamespaceMetrics(namespace corev1.Namespace, clientset *kubernetes.Cli
 		*errorsList = append(*errorsList, err)
 	}
 
-	fmt.Print("\033[2K\r")
-	fmt.Printf("Metrics for Namespace: %s\n", namespace.Name)
+	// Initialiser la bar de progression
+	bar := progressbar.NewOptions(len(pods.Items),
+		progressbar.OptionClearOnFinish(),
+		progressbar.OptionFullWidth(),
+	)
+
 	// Créer un tableau pour stocker les données
 	var tableData [][]string
 
@@ -249,6 +265,9 @@ func printNamespaceMetrics(namespace corev1.Namespace, clientset *kubernetes.Cli
 	tableData = append(tableData, []string{"Pods", "Container", "CPU Usage", "CPU Request", "CPU Limit", "Mem Usage", "Mem Request", "Mem Limit"})
 
 	for _, pod := range pods.Items {
+		// Increment de la bar de progression
+		bar.Add(1)
+
 		// Obtenir les métriques de performance du pod
 		podMetrics, err := metricsClientset.MetricsV1beta1().PodMetricses(namespace.Name).Get(context.TODO(), pod.Name, metav1.GetOptions{})
 		if err != nil {
@@ -331,6 +350,10 @@ func printNamespaceMetrics(namespace corev1.Namespace, clientset *kubernetes.Cli
 		}
 		fmt.Println("┘")
 	}
+
+	// Imprimer le nom du namespace
+	fmt.Print("\033[2K\r")
+	fmt.Printf("Metrics for Namespace: %s\n", namespace.Name)
 
 	// Imprimer la ligne de délimitation du haut
 	fmt.Print("\033[2K\r")
