@@ -24,7 +24,7 @@ jobs:
       uses: actions/cache@v2
       with:
         path: ./kram-386.exe
-        key: $GITHUB_RUN_ID-my-cache-key-1
+        key: ${{ github.run_id }}-my-cache-key-1
         
   build-windows-64:
     runs-on: ubuntu-latest
@@ -44,7 +44,7 @@ jobs:
       uses: actions/cache@v2
       with:
         path: ./kram-amd64.exe
-        key: $GITHUB_RUN_ID-my-cache-key-2
+        key: ${{ github.run_id }}-my-cache-key-2
         
   build-linux-386:
     runs-on: ubuntu-latest
@@ -64,7 +64,7 @@ jobs:
       uses: actions/cache@v2
       with:
         path: ./kram-386-linux
-        key: $GITHUB_RUN_ID-my-cache-key-3
+        key: ${{ github.run_id }}-my-cache-key-3
 
   build-linux-64:
     runs-on: ubuntu-latest
@@ -84,7 +84,7 @@ jobs:
       uses: actions/cache@v2
       with:
         path: ./kram-amd64-linux
-        key: $GITHUB_RUN_ID-my-cache-key-4
+        key: ${{ github.run_id }}-my-cache-key-4
 
   create-release:
     runs-on: ubuntu-latest
@@ -97,25 +97,25 @@ jobs:
       uses: actions/cache@v2
       with:
         path: ./kram-386.exe
-        key: $GITHUB_RUN_ID-my-cache-key-1
+        key: ${{ github.run_id }}-my-cache-key-1
 
     - name: Restore Cache
       uses: actions/cache@v2
       with:
         path: ./kram-amd64.exe
-        key: $GITHUB_RUN_ID-my-cache-key-2
+        key: ${{ github.run_id }}-my-cache-key-2
 
     - name: Restore Cache
       uses: actions/cache@v2
       with:
         path: ./kram-386-linux
-        key: $GITHUB_RUN_ID-my-cache-key-3
+        key: ${{ github.run_id }}-my-cache-key-3
 
     - name: Restore Cache
       uses: actions/cache@v2
       with:
         path: ./kram-amd64-linux
-        key: $GITHUB_RUN_ID-my-cache-key-4
+        key: ${{ github.run_id }}-my-cache-key-4
 
     - name: Get Last Release
       id: get_last_release
