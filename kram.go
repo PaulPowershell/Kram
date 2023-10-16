@@ -107,6 +107,7 @@ func ListNamespaceMetrics(namespaces []corev1.Namespace, clientset *kubernetes.C
 	bar := progressbar.NewOptions(int(len(namespaces)),
 		progressbar.OptionClearOnFinish(),
 		progressbar.OptionFullWidth(),
+		progressbar.OptionShowCount(),
 	)
 
 	// Initialiser les colonnes avec des en-têtes
@@ -256,6 +257,7 @@ func printNamespaceMetrics(namespace corev1.Namespace, clientset *kubernetes.Cli
 	bar := progressbar.NewOptions(len(pods.Items),
 		progressbar.OptionClearOnFinish(),
 		progressbar.OptionFullWidth(),
+		progressbar.OptionShowCount(),
 	)
 
 	// Créer un tableau pour stocker les données
