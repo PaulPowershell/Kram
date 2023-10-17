@@ -168,23 +168,8 @@ func ListNamespaceMetrics(namespaces []corev1.Namespace, clientset *kubernetes.C
 	// charger les functions de formatage
 	printDataRow, printDelimiterRow, printTopDelimiterRow, printBottomDelimiterRow := LoadFunctions(tableData)
 
-	// Imprimer la ligne de délimitation du haut
-	fmt.Print("\033[2K\r")
-	printTopDelimiterRow()
-
-	// Imprimer les en-têtes
-	printDataRow(tableData[0])
-
-	// Imprimer la ligne de délimitation du haut
-	printDelimiterRow()
-
-	// Imprimer les données à partir de la deuxième ligne
-	for _, row := range tableData[1:] {
-		printDataRow(row)
-	}
-
-	// Imprimer la ligne de délimitation du bas
-	printBottomDelimiterRow()
+	// Affiche les résultats sous forme tableau
+	RunFunctions(printTopDelimiterRow, printDataRow, tableData, printDelimiterRow, printBottomDelimiterRow)
 }
 
 func printNamespaceMetrics(namespace corev1.Namespace, clientset *kubernetes.Clientset, metricsClientset *metricsv.Clientset, errorsList *[]error) {
@@ -242,6 +227,14 @@ func printNamespaceMetrics(namespace corev1.Namespace, clientset *kubernetes.Cli
 	// Imprimer le nom du namespace
 	fmt.Print("\033[2K\r")
 	fmt.Printf("Metrics for Namespace: %s\n", namespace.Name)
+
+	// Affiche les résultats sous forme tableau
+	RunFunctions(printTopDelimiterRow, printDataRow, tableData, printDelimiterRow, printBottomDelimiterRow)
+}
+
+func RunFunctions(printTopDelimiterRow func(), printDataRow func(row []string), tableData [][]string, printDelimiterRow func(), printBottomDelimiterRow func()) {
+	// Supprime la derniere ligne du spinner
+	fmt.Print("\033[2K\r")
 
 	// Imprimer la ligne de délimitation du haut
 	printTopDelimiterRow()
