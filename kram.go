@@ -22,6 +22,7 @@ var (
 	kubeconfig string
 )
 
+// goSpinner lance un spinner de progression en cours d'exécution en arrière-plan.
 func goSpinner() {
 	chars := []string{"|", "/", "-", "\\"}
 	i := 0
@@ -32,8 +33,8 @@ func goSpinner() {
 	}
 }
 
+// init configure le chemin vers le fichier kubeconfig via un drapeau en ligne de commande
 func init() {
-	// Configuration du chemin vers le fichier kubeconfig via un drapeau en ligne de commande
 	if home := homedir.HomeDir(); home != "" {
 		flag.StringVar(&kubeconfig, "kubeconfig", filepath.Join(home, ".kube", "config"), "(optional) absolute path to the kubeconfig file")
 	} else {
@@ -41,6 +42,7 @@ func init() {
 	}
 }
 
+// main est la fonction d'entrée du programme qui gère la configuration, les arguments et l'affichage des métriques.
 func main() {
 	// Démarre le spinner de progression
 	go goSpinner()
@@ -77,7 +79,7 @@ func main() {
 		if err != nil {
 			errorsList = append(errorsList, err)
 		}
-		ListNamespaceMetrics(namespaces.Items, clientset, metricsClientset, &errorsList)
+		listNamespaceMetrics(namespaces.Items, clientset, metricsClientset, &errorsList)
 	} else {
 		// Si un argument de namespace est spécifié, afficher les valeurs request et limit de chaque pod dans le namespace.
 		namespace := &corev1.Namespace{
@@ -96,7 +98,8 @@ func main() {
 	}
 }
 
-func ListNamespaceMetrics(namespaces []corev1.Namespace, clientset *kubernetes.Clientset, metricsClientset *metricsv.Clientset, errorsList *[]error) {
+// listNamespaceMetrics récupère et affiche les métriques de performance des pods cumulés pour tous les namespaces.
+func listNamespaceMetrics(namespaces []corev1.Namespace, clientset *kubernetes.Clientset, metricsClientset *metricsv.Clientset, errorsList *[]error) {
 	// Initialiser la bar de progression
 	bar := progressbar.NewOptions(int(len(namespaces)),
 		progressbar.OptionClearOnFinish(),
@@ -166,12 +169,13 @@ func ListNamespaceMetrics(namespaces []corev1.Namespace, clientset *kubernetes.C
 	}
 
 	// charger les functions de formatage
-	printDataRow, printDelimiterRow, printTopDelimiterRow, printBottomDelimiterRow := LoadFunctions(tableData)
+	printDataRow, printDelimiterRow, printTopDelimiterRow, printBottomDelimiterRow := loadFunctions(tableData)
 
 	// Affiche les résultats sous forme tableau
-	RunFunctions(printTopDelimiterRow, printDataRow, tableData, printDelimiterRow, printBottomDelimiterRow)
+	runFunctions(printTopDelimiterRow, printDataRow, tableData, printDelimiterRow, printBottomDelimiterRow)
 }
 
+// printNamespaceMetrics récupère et affiche les métriques de performance pour les pods dans un namespace spécifié.
 func printNamespaceMetrics(namespace corev1.Namespace, clientset *kubernetes.Clientset, metricsClientset *metricsv.Clientset, errorsList *[]error) {
 	// Liste de tous les pods dans le namespace spécifié
 	pods, err := clientset.CoreV1().Pods(namespace.Name).List(context.TODO(), metav1.ListOptions{})
@@ -222,17 +226,17 @@ func printNamespaceMetrics(namespace corev1.Namespace, clientset *kubernetes.Cli
 	}
 
 	// charger les functions de formatage
-	printDataRow, printDelimiterRow, printTopDelimiterRow, printBottomDelimiterRow := LoadFunctions(tableData)
+	printDataRow, printDelimiterRow, printTopDelimiterRow, printBottomDelimiterRow := loadFunctions(tableData)
 
 	// Imprimer le nom du namespace
 	fmt.Print("\033[2K\r")
 	fmt.Printf("Metrics for Namespace: %s\n", namespace.Name)
 
 	// Affiche les résultats sous forme tableau
-	RunFunctions(printTopDelimiterRow, printDataRow, tableData, printDelimiterRow, printBottomDelimiterRow)
+	runFunctions(printTopDelimiterRow, printDataRow, tableData, printDelimiterRow, printBottomDelimiterRow)
 }
 
-func RunFunctions(printTopDelimiterRow func(), printDataRow func(row []string), tableData [][]string, printDelimiterRow func(), printBottomDelimiterRow func()) {
+func runFunctions(printTopDelimiterRow func(), printDataRow func(row []string), tableData [][]string, printDelimiterRow func(), printBottomDelimiterRow func()) {
 	// Supprime la derniere ligne du spinner
 	fmt.Print("\033[2K\r")
 
@@ -254,7 +258,7 @@ func RunFunctions(printTopDelimiterRow func(), printDataRow func(row []string), 
 	printBottomDelimiterRow()
 }
 
-func LoadFunctions(tableData [][]string) (func(row []string), func(), func(), func()) {
+func loadFunctions(tableData [][]string) (func(row []string), func(), func(), func()) {
 	// Calculer la largeur maximale de chaque colonne
 	columnWidths := make([]int, len(tableData[0]))
 	for _, row := range tableData {
