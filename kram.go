@@ -42,15 +42,14 @@ func init() {
 }
 
 func main() {
-	// Initialisation d'un tableau pour stocker les erreurs
-	var errorsList []error
-
 	// Démarre le spinner de progression
 	go goSpinner()
 
+	// Initialisation d'un tableau pour stocker les erreurs
+	var errorsList []error
+
 	// Analyse des drapeaux (arguments)
 	flag.Parse()
-
 	// Récupérer le namespace à partir de l'argument de ligne de commande, sinon du fichier de configuration
 	argument := flag.Arg(0)
 
@@ -78,9 +77,7 @@ func main() {
 		if err != nil {
 			errorsList = append(errorsList, err)
 		}
-
 		ListNamespaceMetrics(namespaces.Items, clientset, metricsClientset, &errorsList)
-
 	} else {
 		// Si un argument de namespace est spécifié, afficher les valeurs request et limit de chaque pod dans le namespace.
 		namespace := &corev1.Namespace{
@@ -100,9 +97,6 @@ func main() {
 }
 
 func ListNamespaceMetrics(namespaces []corev1.Namespace, clientset *kubernetes.Clientset, metricsClientset *metricsv.Clientset, errorsList *[]error) {
-	// Créer un tableau pour stocker les données
-	var tableData [][]string
-
 	// Initialiser la bar de progression
 	bar := progressbar.NewOptions(int(len(namespaces)),
 		progressbar.OptionClearOnFinish(),
@@ -110,6 +104,8 @@ func ListNamespaceMetrics(namespaces []corev1.Namespace, clientset *kubernetes.C
 		progressbar.OptionShowCount(),
 	)
 
+	// Créer un tableau pour stocker les données
+	var tableData [][]string
 	// Initialiser les colonnes avec des en-têtes
 	tableData = append(tableData, []string{"Namespace", "Pods", "CPU Usage", "CPU Request", "CPU Limit", "Mem Usage", "Mem Request", "Mem Limit"})
 
@@ -151,7 +147,6 @@ func ListNamespaceMetrics(namespaces []corev1.Namespace, clientset *kubernetes.C
 							totalRAMUsageMB += usage.Memory().Value() / (1024 * 1024)
 							totalRAMRequestMB += requests.Memory().Value() / (1024 * 1024)
 							totalRAMLimitMB += limits.Memory().Value() / (1024 * 1024)
-
 						}
 					}
 				}
@@ -170,62 +165,8 @@ func ListNamespaceMetrics(namespaces []corev1.Namespace, clientset *kubernetes.C
 		}
 	}
 
-	// Calculer la largeur maximale de chaque colonne
-	columnWidths := make([]int, len(tableData[0]))
-	for _, row := range tableData {
-		for i, cell := range row {
-			cellLength := len(cell)
-			if cellLength > columnWidths[i] {
-				columnWidths[i] = cellLength
-			}
-		}
-	}
-
-	// Fonction pour imprimer une ligne de données avec délimitation
-	printDataRow := func(row []string) {
-		fmt.Print("│")
-		for i, cell := range row {
-			formatString := fmt.Sprintf(" %%-%ds │", columnWidths[i])
-			fmt.Printf(formatString, cell)
-		}
-		fmt.Println()
-	}
-
-	// Fonction pour imprimer une ligne de délimitation
-	printDelimiterRow := func() {
-		fmt.Print("├")
-		for i, width := range columnWidths {
-			fmt.Print(strings.Repeat("─", width+2))
-			if i < len(columnWidths)-1 {
-				fmt.Print("┼")
-			}
-		}
-		fmt.Println("┤")
-	}
-
-	// Fonction pour imprimer la ligne de délimitation du haut
-	printTopDelimiterRow := func() {
-		fmt.Print("┌")
-		for i, width := range columnWidths {
-			fmt.Print(strings.Repeat("─", width+2))
-			if i < len(columnWidths)-1 {
-				fmt.Print("┬")
-			}
-		}
-		fmt.Println("┐")
-	}
-
-	// Fonction pour imprimer la ligne de délimitation du bas
-	printBottomDelimiterRow := func() {
-		fmt.Print("└")
-		for i, width := range columnWidths {
-			fmt.Print(strings.Repeat("─", width+2))
-			if i < len(columnWidths)-1 {
-				fmt.Print("┴")
-			}
-		}
-		fmt.Println("┘")
-	}
+	// Calculer la largeur maximale de chaque colonne et imprimer les colonnes
+	printDataRow, printDelimiterRow, printTopDelimiterRow, printBottomDelimiterRow := newFunction(tableData)
 
 	// Imprimer la ligne de délimitation du haut
 	fmt.Print("\033[2K\r")
@@ -262,7 +203,6 @@ func printNamespaceMetrics(namespace corev1.Namespace, clientset *kubernetes.Cli
 
 	// Créer un tableau pour stocker les données
 	var tableData [][]string
-
 	// Initialiser les colonnes avec des en-têtes
 	tableData = append(tableData, []string{"Pods", "Container", "CPU Usage", "CPU Request", "CPU Limit", "Mem Usage", "Mem Request", "Mem Limit"})
 
@@ -296,69 +236,14 @@ func printNamespaceMetrics(namespace corev1.Namespace, clientset *kubernetes.Cli
 		}
 	}
 
-	// Calculer la largeur maximale de chaque colonne
-	columnWidths := make([]int, len(tableData[0]))
-	for _, row := range tableData {
-		for i, cell := range row {
-			cellLength := len(cell)
-			if cellLength > columnWidths[i] {
-				columnWidths[i] = cellLength
-			}
-		}
-	}
-
-	// Fonction pour imprimer une ligne de données avec délimitation
-	printDataRow := func(row []string) {
-		fmt.Print("│")
-		for i, cell := range row {
-			formatString := fmt.Sprintf(" %%-%ds │", columnWidths[i])
-			fmt.Printf(formatString, cell)
-		}
-		fmt.Println()
-	}
-
-	// Fonction pour imprimer une ligne de délimitation
-	printDelimiterRow := func() {
-		fmt.Print("├")
-		for i, width := range columnWidths {
-			fmt.Print(strings.Repeat("─", width+2))
-			if i < len(columnWidths)-1 {
-				fmt.Print("┼")
-			}
-		}
-		fmt.Println("┤")
-	}
-
-	// Fonction pour imprimer la ligne de délimitation du haut
-	printTopDelimiterRow := func() {
-		fmt.Print("┌")
-		for i, width := range columnWidths {
-			fmt.Print(strings.Repeat("─", width+2))
-			if i < len(columnWidths)-1 {
-				fmt.Print("┬")
-			}
-		}
-		fmt.Println("┐")
-	}
-
-	// Fonction pour imprimer la ligne de délimitation du bas
-	printBottomDelimiterRow := func() {
-		fmt.Print("└")
-		for i, width := range columnWidths {
-			fmt.Print(strings.Repeat("─", width+2))
-			if i < len(columnWidths)-1 {
-				fmt.Print("┴")
-			}
-		}
-		fmt.Println("┘")
-	}
+	// Calculer la largeur maximale de chaque colonne et imprimer les colonnes
+	printDataRow, printDelimiterRow, printTopDelimiterRow, printBottomDelimiterRow := newFunction(tableData)
 
 	// Imprimer le nom du namespace
 	fmt.Print("\033[2K\r")
 	fmt.Printf("Metrics for Namespace: %s\n", namespace.Name)
 
 	// Imprimer la ligne de délimitation du haut
-	fmt.Print("\033[2K\r")
 	printTopDelimiterRow()
 
 	// Imprimer les en-têtes
@@ -374,4 +259,59 @@ func printNamespaceMetrics(namespace corev1.Namespace, clientset *kubernetes.Cli
 
 	// Imprimer la ligne de délimitation du bas
 	printBottomDelimiterRow()
+}
+
+func newFunction(tableData [][]string) (func(row []string), func(), func(), func()) {
+	columnWidths := make([]int, len(tableData[0]))
+	for _, row := range tableData {
+		for i, cell := range row {
+			cellLength := len(cell)
+			if cellLength > columnWidths[i] {
+				columnWidths[i] = cellLength
+			}
+		}
+	}
+
+	printDataRow := func(row []string) {
+		fmt.Print("│")
+		for i, cell := range row {
+			formatString := fmt.Sprintf(" %%-%ds │", columnWidths[i])
+			fmt.Printf(formatString, cell)
+		}
+		fmt.Println()
+	}
+
+	printDelimiterRow := func() {
+		fmt.Print("├")
+		for i, width := range columnWidths {
+			fmt.Print(strings.Repeat("─", width+2))
+			if i < len(columnWidths)-1 {
+				fmt.Print("┼")
+			}
+		}
+		fmt.Println("┤")
+	}
+
+	printTopDelimiterRow := func() {
+		fmt.Print("┌")
+		for i, width := range columnWidths {
+			fmt.Print(strings.Repeat("─", width+2))
+			if i < len(columnWidths)-1 {
+				fmt.Print("┬")
+			}
+		}
+		fmt.Println("┐")
+	}
+
+	printBottomDelimiterRow := func() {
+		fmt.Print("└")
+		for i, width := range columnWidths {
+			fmt.Print(strings.Repeat("─", width+2))
+			if i < len(columnWidths)-1 {
+				fmt.Print("┴")
+			}
+		}
+		fmt.Println("┘")
+	}
+	return printDataRow, printDelimiterRow, printTopDelimiterRow, printBottomDelimiterRow
 }
