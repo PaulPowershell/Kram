@@ -71,7 +71,7 @@ func main() {
 		errorsList = append(errorsList, err)
 	}
 
-	// Liste de tous les namespaces si l'argument n'est pas spécifié
+	// Récupère tous les namespaces si l'argument n'est pas spécifié
 	if argument == "" {
 		namespaces, err := clientset.CoreV1().Namespaces().List(context.TODO(), metav1.ListOptions{})
 		if err != nil {
@@ -165,8 +165,8 @@ func ListNamespaceMetrics(namespaces []corev1.Namespace, clientset *kubernetes.C
 		}
 	}
 
-	// Calculer la largeur maximale de chaque colonne et imprimer les colonnes
-	printDataRow, printDelimiterRow, printTopDelimiterRow, printBottomDelimiterRow := newFunction(tableData)
+	// charger les functions de formatage
+	printDataRow, printDelimiterRow, printTopDelimiterRow, printBottomDelimiterRow := LoadFunctions(tableData)
 
 	// Imprimer la ligne de délimitation du haut
 	fmt.Print("\033[2K\r")
@@ -236,8 +236,8 @@ func printNamespaceMetrics(namespace corev1.Namespace, clientset *kubernetes.Cli
 		}
 	}
 
-	// Calculer la largeur maximale de chaque colonne et imprimer les colonnes
-	printDataRow, printDelimiterRow, printTopDelimiterRow, printBottomDelimiterRow := newFunction(tableData)
+	// charger les functions de formatage
+	printDataRow, printDelimiterRow, printTopDelimiterRow, printBottomDelimiterRow := LoadFunctions(tableData)
 
 	// Imprimer le nom du namespace
 	fmt.Print("\033[2K\r")
@@ -261,7 +261,8 @@ func printNamespaceMetrics(namespace corev1.Namespace, clientset *kubernetes.Cli
 	printBottomDelimiterRow()
 }
 
-func newFunction(tableData [][]string) (func(row []string), func(), func(), func()) {
+func LoadFunctions(tableData [][]string) (func(row []string), func(), func(), func()) {
+	// Calculer la largeur maximale de chaque colonne
 	columnWidths := make([]int, len(tableData[0]))
 	for _, row := range tableData {
 		for i, cell := range row {
@@ -272,6 +273,7 @@ func newFunction(tableData [][]string) (func(row []string), func(), func(), func
 		}
 	}
 
+	// Fonction pour imprimer une ligne de données avec délimitation
 	printDataRow := func(row []string) {
 		fmt.Print("│")
 		for i, cell := range row {
@@ -281,6 +283,7 @@ func newFunction(tableData [][]string) (func(row []string), func(), func(), func
 		fmt.Println()
 	}
 
+	// Fonction pour imprimer une ligne de délimitation
 	printDelimiterRow := func() {
 		fmt.Print("├")
 		for i, width := range columnWidths {
@@ -292,6 +295,7 @@ func newFunction(tableData [][]string) (func(row []string), func(), func(), func
 		fmt.Println("┤")
 	}
 
+	// Fonction pour imprimer la ligne de délimitation du haut
 	printTopDelimiterRow := func() {
 		fmt.Print("┌")
 		for i, width := range columnWidths {
@@ -303,6 +307,7 @@ func newFunction(tableData [][]string) (func(row []string), func(), func(), func
 		fmt.Println("┐")
 	}
 
+	// Fonction pour imprimer la ligne de délimitation du bas
 	printBottomDelimiterRow := func() {
 		fmt.Print("└")
 		for i, width := range columnWidths {
