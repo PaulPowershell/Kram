@@ -89,7 +89,7 @@ jobs:
   create-release:
     runs-on: ubuntu-latest
     needs: [build-windows-386,build-linux-386,build-windows-64,build-linux-64]
-    if: ${{ always() }}
+    if: ${{ success() }}
     steps:
     - uses: actions/checkout@v3
 
