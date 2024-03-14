@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/docker/go-units"
 	"github.com/schollz/progressbar/v3"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -79,6 +80,7 @@ func main() {
 		if err != nil {
 			errorsList = append(errorsList, err)
 		}
+		fmt.Println("\033[2K\r")
 		listNamespaceMetrics(namespaces.Items, clientset, metricsClientset, &errorsList)
 	} else {
 		// Si un argument de namespace est spécifié, afficher les valeurs request et limit de chaque pod dans le namespace.
@@ -87,6 +89,7 @@ func main() {
 				Name: argument,
 			},
 		}
+		fmt.Println("\033[2K\r")
 		printNamespaceMetrics(*namespace, clientset, metricsClientset, &errorsList)
 	}
 
@@ -108,9 +111,9 @@ func listNamespaceMetrics(namespaces []corev1.Namespace, clientset *kubernetes.C
 	)
 
 	// Créer un tableau pour stocker les données
-	var tableData [][]string
+	var podTableData [][]string
 	// Initialiser les colonnes avec des en-têtes
-	tableData = append(tableData, []string{"Namespace", "Pods", "CPU Usage", "CPU Request", "CPU Limit", "Mem Usage", "Mem Request", "Mem Limit"})
+	podTableData = append(podTableData, []string{"Namespace", "Pods", "CPU Usage", "CPU Request", "CPU Limit", "Mem Usage", "Mem Request", "Mem Limit"})
 
 	for _, namespace := range namespaces {
 		// Increment de la bar de progression
@@ -164,15 +167,15 @@ func listNamespaceMetrics(namespaces []corev1.Namespace, clientset *kubernetes.C
 
 			// Ajouter les données à la ligne du tableau
 			row := []string{namespace.Name, fmt.Sprint(len(pods.Items)), cpuUsage, cpuRequest, cpuLimit, memoryUsage, memoryRequest, memoryLimit}
-			tableData = append(tableData, row)
+			podTableData = append(podTableData, row)
 		}
 	}
 
 	// charger les functions de formatage
-	printDataRow, printDelimiterRow, printTopDelimiterRow, printBottomDelimiterRow := loadFunctions(tableData)
+	printDataRow, printDelimiterRow, printTopDelimiterRow, printBottomDelimiterRow := loadFunctions(podTableData)
 
 	// Affiche les résultats sous forme tableau
-	runFunctions(printTopDelimiterRow, printDataRow, tableData, printDelimiterRow, printBottomDelimiterRow)
+	runFunctions(printTopDelimiterRow, printDataRow, podTableData, printDelimiterRow, printBottomDelimiterRow)
 }
 
 // printNamespaceMetrics récupère et affiche les métriques de performance pour les pods dans un namespace spécifié.
@@ -191,9 +194,9 @@ func printNamespaceMetrics(namespace corev1.Namespace, clientset *kubernetes.Cli
 	)
 
 	// Créer un tableau pour stocker les données
-	var tableData [][]string
+	var podTableData [][]string
 	// Initialiser les colonnes avec des en-têtes
-	tableData = append(tableData, []string{"Pods", "Container", "CPU Usage", "CPU Request", "CPU Limit", "Mem Usage", "Mem Request", "Mem Limit"})
+	podTableData = append(podTableData, []string{"Pods", "Container", "CPU Usage", "CPU Request", "CPU Limit", "Mem Usage", "Mem Request", "Mem Limit"})
 
 	for _, pod := range pods.Items {
 		// Increment de la bar de progression
@@ -207,36 +210,73 @@ func printNamespaceMetrics(namespace corev1.Namespace, clientset *kubernetes.Cli
 
 		// Obtenir les métriques de performance des pods
 		for _, containerMetrics := range podMetrics.Containers {
+			var cpuRequest int64
+			var memoryRequest int64
+
 			usage := containerMetrics.Usage
-			requests := pod.Spec.Containers[0].Resources.Requests
-			limits := pod.Spec.Containers[0].Resources.Limits
 
+			// Trouver le conteneur correspondant dans la spécification du pod
+			var containerSpec corev1.Container
+			for _, container := range pod.Spec.Containers {
+				if container.Name == containerMetrics.Name {
+					containerSpec = container
+					break
+				}
+			}
+
+			if containerSpec.Name == "" {
+				// Container spécifié dans les métriques mais pas dans la spécification, erreur ?
+				continue
+			}
+
+			requests := containerSpec.Resources.Requests
+			limits := containerSpec.Resources.Limits
+
+			// Attribuer des metrics aux valeurs (Mo/Mi)
 			containerName := containerMetrics.Name
-			cpuUsage := fmt.Sprintf("%d Mi", usage.Cpu().MilliValue())
-			cpuRequest := fmt.Sprintf("%d Mi", requests.Cpu().MilliValue())
-			cpuLimit := fmt.Sprintf("%d Mi", limits.Cpu().MilliValue())
-			memoryUsage := fmt.Sprintf("%d Mo", usage.Memory().Value()/(1024*1024))
-			memoryRequest := fmt.Sprintf("%d Mo", requests.Memory().Value()/(1024*1024))
-			memoryLimit := fmt.Sprintf("%d Mo", limits.Memory().Value()/(1024*1024))
+			cpuUsage := usage.Cpu().MilliValue()
+			if requests.Cpu().MilliValue() == 0 {
+				cpuRequest = cpuUsage
+			} else {
+				cpuRequest = requests.Cpu().MilliValue()
+			}
+			cpuLimit := limits.Cpu().MilliValue()
+			memoryUsage := usage.Memory().Value()
+			if requests.Memory().Value() == 0 {
+				memoryRequest = memoryUsage
+			} else {
+				memoryRequest = requests.Memory().Value()
+			}
+			memoryLimit := limits.Memory().Value()
 
-			// Ajouter les données à la ligne du tableau
-			row := []string{pod.Name, containerName, cpuUsage, cpuRequest, cpuLimit, memoryUsage, memoryRequest, memoryLimit}
-			tableData = append(tableData, row)
+			// Ajouter les données à la ligne du tableau, y compris la tolérance spot
+			row := []string{
+				pod.Name,
+				containerName,
+				fmt.Sprintf("%d m", cpuUsage),
+				fmt.Sprintf("%d m", cpuRequest),
+				fmt.Sprintf("%d m", cpuLimit),
+				units.HumanSize(float64(memoryUsage)),
+				units.HumanSize(float64(memoryRequest)),
+				units.HumanSize(float64(memoryLimit)),
+			}
+
+			podTableData = append(podTableData, row)
 		}
 	}
 
 	// charger les functions de formatage
-	printDataRow, printDelimiterRow, printTopDelimiterRow, printBottomDelimiterRow := loadFunctions(tableData)
+	printDataRow, printDelimiterRow, printTopDelimiterRow, printBottomDelimiterRow := loadFunctions(podTableData)
 
 	// Imprimer le nom du namespace
 	fmt.Print("\033[2K\r")
 	fmt.Printf("Metrics for Namespace: %s\n", namespace.Name)
 
 	// Affiche les résultats sous forme tableau
-	runFunctions(printTopDelimiterRow, printDataRow, tableData, printDelimiterRow, printBottomDelimiterRow)
+	runFunctions(printTopDelimiterRow, printDataRow, podTableData, printDelimiterRow, printBottomDelimiterRow)
 }
 
-func runFunctions(printTopDelimiterRow func(), printDataRow func(row []string), tableData [][]string, printDelimiterRow func(), printBottomDelimiterRow func()) {
+func runFunctions(printTopDelimiterRow func(), printDataRow func(row []string), podTableData [][]string, printDelimiterRow func(), printBottomDelimiterRow func()) {
 	// Supprime la derniere ligne du spinner
 	fmt.Print("\033[2K\r")
 
@@ -244,13 +284,13 @@ func runFunctions(printTopDelimiterRow func(), printDataRow func(row []string), 
 	printTopDelimiterRow()
 
 	// Imprimer les en-têtes
-	printDataRow(tableData[0])
+	printDataRow(podTableData[0])
 
 	// Imprimer la ligne de délimitation du haut
 	printDelimiterRow()
 
 	// Imprimer les données à partir de la deuxième ligne
-	for _, row := range tableData[1:] {
+	for _, row := range podTableData[1:] {
 		printDataRow(row)
 	}
 
@@ -259,6 +299,9 @@ func runFunctions(printTopDelimiterRow func(), printDataRow func(row []string), 
 }
 
 func loadFunctions(tableData [][]string) (func(row []string), func(), func(), func()) {
+	alternateColor := true
+	var color string
+
 	// Calculer la largeur maximale de chaque colonne
 	columnWidths := make([]int, len(tableData[0]))
 	for _, row := range tableData {
@@ -273,11 +316,17 @@ func loadFunctions(tableData [][]string) (func(row []string), func(), func(), fu
 	// Fonction pour imprimer une ligne de données avec délimitation
 	printDataRow := func(row []string) {
 		fmt.Print("│")
+		if alternateColor {
+			color = "" // No color background
+		} else {
+			color = "\033[48;5;238m" // Light gray background
+		}
 		for i, cell := range row {
-			formatString := fmt.Sprintf(" %%-%ds │", columnWidths[i])
+			formatString := fmt.Sprintf("%s %%-%ds \033[0m│", color, columnWidths[i])
 			fmt.Printf(formatString, cell)
 		}
-		fmt.Println()
+		alternateColor = !alternateColor
+		fmt.Println("")
 	}
 
 	// Fonction pour imprimer une ligne de délimitation
