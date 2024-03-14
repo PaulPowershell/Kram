@@ -3,6 +3,7 @@ module kram
 go 1.20
 
 require (
+	github.com/docker/go-units v0.5.0
 	github.com/schollz/progressbar/v3 v3.13.1
 	k8s.io/api v0.28.2
 	k8s.io/apimachinery v0.28.2
