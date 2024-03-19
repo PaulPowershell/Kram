@@ -127,12 +127,8 @@ func listNamespaceMetrics(namespaces []corev1.Namespace, clientset *kubernetes.C
 
 		if (len(pods.Items)) != 0 {
 			// Initialiser des variables pour stocker les données
-			var totalCPUMilliCPU int64
-			var totalCPURequestMilliCPU int64
-			var totalCPULimitMilliCPU int64
-			var totalRAMUsageMB int64
-			var totalRAMRequestMB int64
-			var totalRAMLimitMB int64
+			var totalCPUMilliCPU, totalCPURequestMilliCPU, totalCPULimitMilliCPU int64
+			var totalRAMUsageMB, totalRAMRequestMB, totalRAMLimitMB int64
 
 			// Parcourir tous les pods dans la liste et collecter les données
 			for _, pod := range pods.Items {
@@ -150,20 +146,20 @@ func listNamespaceMetrics(namespaces []corev1.Namespace, clientset *kubernetes.C
 							totalCPUMilliCPU += usage.Cpu().MilliValue()
 							totalCPURequestMilliCPU += requests.Cpu().MilliValue()
 							totalCPULimitMilliCPU += limits.Cpu().MilliValue()
-							totalRAMUsageMB += usage.Memory().Value() / (1024 * 1024)
-							totalRAMRequestMB += requests.Memory().Value() / (1024 * 1024)
-							totalRAMLimitMB += limits.Memory().Value() / (1024 * 1024)
+							totalRAMUsageMB += usage.Memory().Value()
+							totalRAMRequestMB += requests.Memory().Value()
+							totalRAMLimitMB += limits.Memory().Value()
 						}
 					}
 				}
 			}
 			// Attribuer des metrics au valeurs (Mo/Mi)
-			cpuUsage := fmt.Sprintf("%d Mi", totalCPUMilliCPU)
-			cpuRequest := fmt.Sprintf("%d Mi", totalCPURequestMilliCPU)
-			cpuLimit := fmt.Sprintf("%d Mi", totalCPULimitMilliCPU)
-			memoryUsage := fmt.Sprintf("%d Mo", totalRAMUsageMB)
-			memoryRequest := fmt.Sprintf("%d Mo", totalRAMRequestMB)
-			memoryLimit := fmt.Sprintf("%d Mo", totalRAMLimitMB)
+			cpuUsage := fmt.Sprintf("%d m", totalCPUMilliCPU)
+			cpuRequest := fmt.Sprintf("%d m", totalCPURequestMilliCPU)
+			cpuLimit := fmt.Sprintf("%d m", totalCPULimitMilliCPU)
+			memoryUsage := units.BytesSize(float64(totalRAMUsageMB))
+			memoryRequest := units.BytesSize(float64(totalRAMRequestMB))
+			memoryLimit := units.BytesSize(float64(totalRAMLimitMB))
 
 			// Ajouter les données à la ligne du tableau
 			row := []string{namespace.Name, fmt.Sprint(len(pods.Items)), cpuUsage, cpuRequest, cpuLimit, memoryUsage, memoryRequest, memoryLimit}
@@ -195,6 +191,11 @@ func printNamespaceMetrics(namespace corev1.Namespace, clientset *kubernetes.Cli
 
 	// Créer un tableau pour stocker les données
 	var podTableData [][]string
+
+	// Variables pour le cumul des métriques
+	var totalCPUUsage, totalCPURequest, totalCPULimit int64
+	var totalMemoryUsage, totalMemoryRequest, totalMemoryLimit int64
+
 	// Initialiser les colonnes avec des en-têtes
 	podTableData = append(podTableData, []string{"Pods", "Container", "CPU Usage", "CPU Request", "CPU Limit", "Mem Usage", "Mem Request", "Mem Limit"})
 
@@ -225,45 +226,65 @@ func printNamespaceMetrics(namespace corev1.Namespace, clientset *kubernetes.Cli
 			}
 
 			if containerSpec.Name == "" {
-				// Container spécifié dans les métriques mais pas dans la spécification, erreur ?
 				continue
 			}
 
 			requests := containerSpec.Resources.Requests
 			limits := containerSpec.Resources.Limits
 
-			// Attribuer des metrics aux valeurs (Mo/Mi)
 			containerName := containerMetrics.Name
 			cpuUsage := usage.Cpu().MilliValue()
-			if requests.Cpu().MilliValue() == 0 {
-				cpuRequest = cpuUsage
-			} else {
-				cpuRequest = requests.Cpu().MilliValue()
-			}
+			cpuRequest = requests.Cpu().MilliValue()
 			cpuLimit := limits.Cpu().MilliValue()
 			memoryUsage := usage.Memory().Value()
-			if requests.Memory().Value() == 0 {
-				memoryRequest = memoryUsage
-			} else {
-				memoryRequest = requests.Memory().Value()
-			}
+			memoryRequest = requests.Memory().Value()
 			memoryLimit := limits.Memory().Value()
 
-			// Ajouter les données à la ligne du tableau, y compris la tolérance spot
+			// Ajouter les données à la ligne du tableau avec les unités appropriées
 			row := []string{
 				pod.Name,
 				containerName,
 				fmt.Sprintf("%d m", cpuUsage),
 				fmt.Sprintf("%d m", cpuRequest),
 				fmt.Sprintf("%d m", cpuLimit),
-				units.HumanSize(float64(memoryUsage)),
-				units.HumanSize(float64(memoryRequest)),
-				units.HumanSize(float64(memoryLimit)),
+				units.BytesSize(float64(memoryUsage)),
+				units.BytesSize(float64(memoryRequest)),
+				units.BytesSize(float64(memoryLimit)),
 			}
 
 			podTableData = append(podTableData, row)
+
+			// Ajouter aux totaux
+			totalCPUUsage += cpuUsage
+			totalCPURequest += cpuRequest
+			totalCPULimit += cpuLimit
+			totalMemoryUsage += memoryUsage
+			totalMemoryRequest += memoryRequest
+			totalMemoryLimit += memoryLimit
 		}
 	}
+
+	// Formater les totaux avec les unités appropriées
+	FormattedTotalCPUUsage := fmt.Sprintf("%d m", totalCPUUsage)
+	formattedTotalCPURequest := fmt.Sprintf("%d m", totalCPURequest)
+	formattedTotalCPULimit := fmt.Sprintf("%d m", totalCPULimit)
+	formattedTotalMemoryUsage := units.HumanSize(float64(totalMemoryUsage))
+	formattedTotalMemoryRequest := units.HumanSize(float64(totalMemoryRequest))
+	formattedTotalMemoryLimit := units.HumanSize(float64(totalMemoryLimit))
+
+	// Ajouter une ligne pour le total
+	totalPods := []string{
+		"Total",
+		"",
+		FormattedTotalCPUUsage,
+		formattedTotalCPURequest,
+		formattedTotalCPULimit,
+		formattedTotalMemoryUsage,
+		formattedTotalMemoryRequest,
+		formattedTotalMemoryLimit,
+	}
+
+	podTableData = append(podTableData, totalPods)
 
 	// charger les functions de formatage
 	printDataRow, printDelimiterRow, printTopDelimiterRow, printBottomDelimiterRow := loadFunctions(podTableData)
