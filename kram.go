@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/docker/go-units"
@@ -21,6 +22,7 @@ import (
 
 var (
 	kubeconfig string
+	lock       = &sync.Mutex{}
 )
 
 // goSpinner lance un spinner de progression en cours d'exécution en arrière-plan.
@@ -28,7 +30,9 @@ func goSpinner() {
 	chars := []string{"|", "/", "-", "\\"}
 	i := 0
 	for {
+		lock.Lock()
 		fmt.Printf("\r%s ", chars[i])
+		lock.Unlock()
 		i = (i + 1) % len(chars)
 		time.Sleep(100 * time.Millisecond) // Réglez la vitesse de rotation ici
 	}
@@ -80,7 +84,6 @@ func main() {
 		if err != nil {
 			errorsList = append(errorsList, err)
 		}
-		fmt.Println("\033[2K\r")
 		listNamespaceMetrics(namespaces.Items, clientset, metricsClientset, &errorsList)
 	} else {
 		// Si un argument de namespace est spécifié, afficher les valeurs request et limit de chaque pod dans le namespace.
@@ -89,7 +92,6 @@ func main() {
 				Name: argument,
 			},
 		}
-		fmt.Println("\033[2K\r")
 		printNamespaceMetrics(*namespace, clientset, metricsClientset, &errorsList)
 	}
 
@@ -170,8 +172,13 @@ func listNamespaceMetrics(namespaces []corev1.Namespace, clientset *kubernetes.C
 	// charger les functions de formatage
 	printDataRow, printDelimiterRow, printTopDelimiterRow, printBottomDelimiterRow := loadFunctions(podTableData)
 
+	// Supprime la derniere ligne du spinner
+	fmt.Print("\033[2K\r")
+
 	// Affiche les résultats sous forme tableau
+	lock.Lock()
 	runFunctions(printTopDelimiterRow, printDataRow, podTableData, printDelimiterRow, printBottomDelimiterRow)
+	lock.Unlock()
 }
 
 // printNamespaceMetrics récupère et affiche les métriques de performance pour les pods dans un namespace spécifié.
@@ -289,17 +296,20 @@ func printNamespaceMetrics(namespace corev1.Namespace, clientset *kubernetes.Cli
 	// charger les functions de formatage
 	printDataRow, printDelimiterRow, printTopDelimiterRow, printBottomDelimiterRow := loadFunctions(podTableData)
 
-	// Imprimer le nom du namespace
+	// Supprime la derniere ligne du spinner
 	fmt.Print("\033[2K\r")
+
+	// Imprimer le nom du namespace
+	lock.Lock()
 	fmt.Printf("Metrics for Namespace: %s\n", namespace.Name)
 
 	// Affiche les résultats sous forme tableau
 	runFunctions(printTopDelimiterRow, printDataRow, podTableData, printDelimiterRow, printBottomDelimiterRow)
+	lock.Unlock()
 }
 
 func runFunctions(printTopDelimiterRow func(), printDataRow func(row []string), podTableData [][]string, printDelimiterRow func(), printBottomDelimiterRow func()) {
-	// Supprime la derniere ligne du spinner
-	fmt.Print("\033[2K\r")
+	// fmt.Print("\033[2K\r")
 
 	// Imprimer la ligne de délimitation du haut
 	printTopDelimiterRow()
