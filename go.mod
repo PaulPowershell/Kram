@@ -1,6 +1,6 @@
-module kram
+module main
 
-go 1.20
+go 1.21.6
 
 require (
 	github.com/docker/go-units v0.5.0
