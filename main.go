@@ -5,12 +5,9 @@ import (
 	"flag"
 	"fmt"
 	"path/filepath"
-	"strings"
-	"sync"
-	"time"
 
 	"github.com/docker/go-units"
-	"github.com/schollz/progressbar/v3"
+	"github.com/pterm/pterm"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -22,21 +19,7 @@ import (
 
 var (
 	kubeconfig string
-	lock       = &sync.Mutex{}
 )
-
-// goSpinner lance un spinner de progression en cours d'exécution en arrière-plan.
-func goSpinner() {
-	chars := []string{"|", "/", "-", "\\"}
-	i := 0
-	for {
-		lock.Lock()
-		fmt.Printf("\r%s ", chars[i])
-		lock.Unlock()
-		i = (i + 1) % len(chars)
-		time.Sleep(100 * time.Millisecond) // Réglez la vitesse de rotation ici
-	}
-}
 
 // init configure le chemin vers le fichier kubeconfig via un drapeau en ligne de commande
 func init() {
@@ -49,8 +32,11 @@ func init() {
 
 // main est la fonction d'entrée du programme qui gère la configuration, les arguments et l'affichage des métriques.
 func main() {
-	// Démarre le spinner de progression
-	go goSpinner()
+	// Create a multi printer instance
+	multi := pterm.DefaultMultiPrinter
+	spinner, _ := pterm.DefaultSpinner.WithWriter(multi.NewWriter()).Start("Initialization running")
+	// Start the multi printer
+	multi.Start()
 
 	// Initialisation d'un tableau pour stocker les erreurs
 	var errorsList []error
@@ -63,25 +49,35 @@ func main() {
 	// Construction de la configuration en utilisant le kubeconfig spécifié
 	config, err := clientcmd.BuildConfigFromFlags("", kubeconfig)
 	if err != nil {
+		spinner.Fail("Initialization error")
+		multi.Stop()
 		errorsList = append(errorsList, err)
 	}
 
 	// Création du clientset pour interagir avec l'API Kubernetes
 	clientset, err := kubernetes.NewForConfig(config)
 	if err != nil {
+		spinner.Fail("Initialization error")
+		multi.Stop()
 		errorsList = append(errorsList, err)
 	}
 
 	// Création du clientset pour les métriques Kubernetes
 	metricsClientset, err := metricsv.NewForConfig(config)
 	if err != nil {
+		spinner.Fail("Initialization error")
+		multi.Stop()
 		errorsList = append(errorsList, err)
 	}
 
+	spinner.Success("Initialization done")
+	multi.Stop()
 	// Récupère tous les namespaces si l'argument n'est pas spécifié
 	if argument == "" {
 		namespaces, err := clientset.CoreV1().Namespaces().List(context.TODO(), metav1.ListOptions{})
 		if err != nil {
+			spinner.Fail("Initialization error")
+			multi.Stop()
 			errorsList = append(errorsList, err)
 		}
 		listNamespaceMetrics(namespaces.Items, clientset, metricsClientset, &errorsList)
@@ -106,11 +102,7 @@ func main() {
 // listNamespaceMetrics récupère et affiche les métriques de performance des pods cumulés pour tous les namespaces.
 func listNamespaceMetrics(namespaces []corev1.Namespace, clientset *kubernetes.Clientset, metricsClientset *metricsv.Clientset, errorsList *[]error) {
 	// Initialiser la bar de progression
-	bar := progressbar.NewOptions(int(len(namespaces)),
-		progressbar.OptionClearOnFinish(),
-		progressbar.OptionFullWidth(),
-		progressbar.OptionShowCount(),
-	)
+	bar, _ := pterm.DefaultProgressbar.WithTotal(len(namespaces)).WithTitle("Running").WithRemoveWhenDone().Start()
 
 	// Créer un tableau pour stocker les données
 	var podTableData [][]string
@@ -119,7 +111,7 @@ func listNamespaceMetrics(namespaces []corev1.Namespace, clientset *kubernetes.C
 
 	for _, namespace := range namespaces {
 		// Increment de la bar de progression
-		bar.Add(1)
+		bar.Increment()
 
 		// Liste de tous les pods dans le namespace spécifié
 		pods, err := clientset.CoreV1().Pods(namespace.Name).List(context.TODO(), metav1.ListOptions{})
@@ -164,21 +156,22 @@ func listNamespaceMetrics(namespaces []corev1.Namespace, clientset *kubernetes.C
 			memoryLimit := units.BytesSize(float64(totalRAMLimitMB))
 
 			// Ajouter les données à la ligne du tableau
-			row := []string{namespace.Name, fmt.Sprint(len(pods.Items)), cpuUsage, cpuRequest, cpuLimit, memoryUsage, memoryRequest, memoryLimit}
+			row := []string{
+				namespace.Name,
+				fmt.Sprint(len(pods.Items)),
+				cpuUsage,
+				cpuRequest,
+				cpuLimit,
+				memoryUsage,
+				memoryRequest,
+				memoryLimit,
+			}
 			podTableData = append(podTableData, row)
 		}
 	}
 
-	// charger les functions de formatage
-	printDataRow, printDelimiterRow, printTopDelimiterRow, printBottomDelimiterRow := loadFunctions(podTableData)
-
-	// Supprime la derniere ligne du spinner
-	fmt.Print("\033[2K\r")
-
 	// Affiche les résultats sous forme tableau
-	lock.Lock()
-	runFunctions(printTopDelimiterRow, printDataRow, podTableData, printDelimiterRow, printBottomDelimiterRow)
-	lock.Unlock()
+	pterm.DefaultTable.WithHeaderRowSeparator("─").WithBoxed().WithHasHeader().WithData(podTableData).Render()
 }
 
 // printNamespaceMetrics récupère et affiche les métriques de performance pour les pods dans un namespace spécifié.
@@ -190,11 +183,7 @@ func printNamespaceMetrics(namespace corev1.Namespace, clientset *kubernetes.Cli
 	}
 
 	// Initialiser la bar de progression
-	bar := progressbar.NewOptions(len(pods.Items),
-		progressbar.OptionClearOnFinish(),
-		progressbar.OptionFullWidth(),
-		progressbar.OptionShowCount(),
-	)
+	bar, _ := pterm.DefaultProgressbar.WithTotal(len(pods.Items)).WithTitle("Running").WithRemoveWhenDone().Start()
 
 	// Créer un tableau pour stocker les données
 	var podTableData [][]string
@@ -208,7 +197,7 @@ func printNamespaceMetrics(namespace corev1.Namespace, clientset *kubernetes.Cli
 
 	for _, pod := range pods.Items {
 		// Increment de la bar de progression
-		bar.Add(1)
+		bar.Increment()
 
 		// Obtenir les métriques de performance du pod
 		podMetrics, err := metricsClientset.MetricsV1beta1().PodMetricses(namespace.Name).Get(context.TODO(), pod.Name, metav1.GetOptions{})
@@ -293,107 +282,9 @@ func printNamespaceMetrics(namespace corev1.Namespace, clientset *kubernetes.Cli
 
 	podTableData = append(podTableData, totalPods)
 
-	// charger les functions de formatage
-	printDataRow, printDelimiterRow, printTopDelimiterRow, printBottomDelimiterRow := loadFunctions(podTableData)
-
-	// Supprime la derniere ligne du spinner
-	fmt.Print("\033[2K\r")
-
 	// Imprimer le nom du namespace
-	lock.Lock()
 	fmt.Printf("Metrics for Namespace: %s\n", namespace.Name)
 
 	// Affiche les résultats sous forme tableau
-	runFunctions(printTopDelimiterRow, printDataRow, podTableData, printDelimiterRow, printBottomDelimiterRow)
-	lock.Unlock()
-}
-
-func runFunctions(printTopDelimiterRow func(), printDataRow func(row []string), podTableData [][]string, printDelimiterRow func(), printBottomDelimiterRow func()) {
-	// fmt.Print("\033[2K\r")
-
-	// Imprimer la ligne de délimitation du haut
-	printTopDelimiterRow()
-
-	// Imprimer les en-têtes
-	printDataRow(podTableData[0])
-
-	// Imprimer la ligne de délimitation du haut
-	printDelimiterRow()
-
-	// Imprimer les données à partir de la deuxième ligne
-	for _, row := range podTableData[1:] {
-		printDataRow(row)
-	}
-
-	// Imprimer la ligne de délimitation du bas
-	printBottomDelimiterRow()
-}
-
-func loadFunctions(tableData [][]string) (func(row []string), func(), func(), func()) {
-	alternateColor := true
-	var color string
-
-	// Calculer la largeur maximale de chaque colonne
-	columnWidths := make([]int, len(tableData[0]))
-	for _, row := range tableData {
-		for i, cell := range row {
-			cellLength := len(cell)
-			if cellLength > columnWidths[i] {
-				columnWidths[i] = cellLength
-			}
-		}
-	}
-
-	// Fonction pour imprimer une ligne de données avec délimitation
-	printDataRow := func(row []string) {
-		fmt.Print("│")
-		if alternateColor {
-			color = "" // No color background
-		} else {
-			color = "\033[48;5;238m" // Light gray background
-		}
-		for i, cell := range row {
-			formatString := fmt.Sprintf("%s %%-%ds \033[0m│", color, columnWidths[i])
-			fmt.Printf(formatString, cell)
-		}
-		alternateColor = !alternateColor
-		fmt.Println("")
-	}
-
-	// Fonction pour imprimer une ligne de délimitation
-	printDelimiterRow := func() {
-		fmt.Print("├")
-		for i, width := range columnWidths {
-			fmt.Print(strings.Repeat("─", width+2))
-			if i < len(columnWidths)-1 {
-				fmt.Print("┼")
-			}
-		}
-		fmt.Println("┤")
-	}
-
-	// Fonction pour imprimer la ligne de délimitation du haut
-	printTopDelimiterRow := func() {
-		fmt.Print("┌")
-		for i, width := range columnWidths {
-			fmt.Print(strings.Repeat("─", width+2))
-			if i < len(columnWidths)-1 {
-				fmt.Print("┬")
-			}
-		}
-		fmt.Println("┐")
-	}
-
-	// Fonction pour imprimer la ligne de délimitation du bas
-	printBottomDelimiterRow := func() {
-		fmt.Print("└")
-		for i, width := range columnWidths {
-			fmt.Print(strings.Repeat("─", width+2))
-			if i < len(columnWidths)-1 {
-				fmt.Print("┴")
-			}
-		}
-		fmt.Println("┘")
-	}
-	return printDataRow, printDelimiterRow, printTopDelimiterRow, printBottomDelimiterRow
+	pterm.DefaultTable.WithHeaderRowSeparator("─").WithBoxed().WithHasHeader().WithData(podTableData).Render()
 }
