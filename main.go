@@ -70,8 +70,6 @@ func main() {
 		errorsList = append(errorsList, err)
 	}
 
-	spinner.Success("Initialization done")
-	multi.Stop()
 	// Récupère tous les namespaces si l'argument n'est pas spécifié
 	if argument == "" {
 		namespaces, err := clientset.CoreV1().Namespaces().List(context.TODO(), metav1.ListOptions{})
@@ -80,6 +78,8 @@ func main() {
 			multi.Stop()
 			errorsList = append(errorsList, err)
 		}
+		spinner.Success("Initialization done")
+		multi.Stop()
 		listNamespaceMetrics(namespaces.Items, clientset, metricsClientset, &errorsList)
 	} else {
 		// Si un argument de namespace est spécifié, afficher les valeurs request et limit de chaque pod dans le namespace.
@@ -88,6 +88,8 @@ func main() {
 				Name: argument,
 			},
 		}
+		spinner.Success("Initialization done")
+		multi.Stop()
 		printNamespaceMetrics(*namespace, clientset, metricsClientset, &errorsList)
 	}
 
