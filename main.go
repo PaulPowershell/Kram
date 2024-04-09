@@ -106,6 +106,9 @@ func listNamespaceMetrics(namespaces []corev1.Namespace, clientset *kubernetes.C
 	// Initialiser la bar de progression
 	bar, _ := pterm.DefaultProgressbar.WithTotal(len(namespaces)).WithTitle("Running").WithRemoveWhenDone().Start()
 
+	// créer une variable pour colorer une ligne sur 2 es tableaux
+	var colorgrid = false
+
 	// Créer un tableau pour stocker les données
 	var podTableData [][]string
 	// Initialiser les colonnes avec des en-têtes
@@ -157,18 +160,36 @@ func listNamespaceMetrics(namespaces []corev1.Namespace, clientset *kubernetes.C
 			memoryRequest := units.BytesSize(float64(totalRAMRequestMB))
 			memoryLimit := units.BytesSize(float64(totalRAMLimitMB))
 
-			// Ajouter les données à la ligne du tableau
-			row := []string{
-				namespace.Name,
-				fmt.Sprint(len(pods.Items)),
-				cpuUsage,
-				cpuRequest,
-				cpuLimit,
-				memoryUsage,
-				memoryRequest,
-				memoryLimit,
+			if colorgrid {
+				// Ajouter les données à la ligne du tableau
+				row := []string{
+					pterm.BgDarkGray.Sprint(namespace.Name),
+					pterm.BgDarkGray.Sprint(fmt.Sprint(len(pods.Items))),
+					pterm.BgDarkGray.Sprint(cpuUsage),
+					pterm.BgDarkGray.Sprint(cpuRequest),
+					pterm.BgDarkGray.Sprint(cpuLimit),
+					pterm.BgDarkGray.Sprint(memoryUsage),
+					pterm.BgDarkGray.Sprint(memoryRequest),
+					pterm.BgDarkGray.Sprint(memoryLimit),
+				}
+				podTableData = append(podTableData, row)
+			} else {
+				// Ajouter les données à la ligne du tableau sans couleur
+				row := []string{
+					namespace.Name,
+					fmt.Sprint(len(pods.Items)),
+					cpuUsage,
+					cpuRequest,
+					cpuLimit,
+					memoryUsage,
+					memoryRequest,
+					memoryLimit,
+				}
+				podTableData = append(podTableData, row)
 			}
-			podTableData = append(podTableData, row)
+
+			// Inverser la valeur de colorgrid
+			colorgrid = !colorgrid
 		}
 	}
 
@@ -186,6 +207,9 @@ func printNamespaceMetrics(namespace corev1.Namespace, clientset *kubernetes.Cli
 
 	// Initialiser la bar de progression
 	bar, _ := pterm.DefaultProgressbar.WithTotal(len(pods.Items)).WithTitle("Running").WithRemoveWhenDone().Start()
+
+	// créer une variable pour colorer une ligne sur 2 es tableaux
+	var colorgrid = false
 
 	// Créer un tableau pour stocker les données
 	var podTableData [][]string
@@ -238,19 +262,36 @@ func printNamespaceMetrics(namespace corev1.Namespace, clientset *kubernetes.Cli
 			memoryRequest = requests.Memory().Value()
 			memoryLimit := limits.Memory().Value()
 
-			// Ajouter les données à la ligne du tableau avec les unités appropriées
-			row := []string{
-				pod.Name,
-				containerName,
-				fmt.Sprintf("%d m", cpuUsage),
-				fmt.Sprintf("%d m", cpuRequest),
-				fmt.Sprintf("%d m", cpuLimit),
-				units.BytesSize(float64(memoryUsage)),
-				units.BytesSize(float64(memoryRequest)),
-				units.BytesSize(float64(memoryLimit)),
+			if colorgrid {
+				// Ajouter les données à la ligne du tableau avec les unités appropriées
+				row := []string{
+					pterm.BgDarkGray.Sprint(pod.Name),
+					pterm.BgDarkGray.Sprint(containerName),
+					pterm.BgDarkGray.Sprint(fmt.Sprintf("%d m", cpuUsage)),
+					pterm.BgDarkGray.Sprint(fmt.Sprintf("%d m", cpuRequest)),
+					pterm.BgDarkGray.Sprint(fmt.Sprintf("%d m", cpuLimit)),
+					pterm.BgDarkGray.Sprint(units.BytesSize(float64(memoryUsage))),
+					pterm.BgDarkGray.Sprint(units.BytesSize(float64(memoryRequest))),
+					pterm.BgDarkGray.Sprint(units.BytesSize(float64(memoryLimit))),
+				}
+				podTableData = append(podTableData, row)
+			} else {
+				// Ajouter les données à la ligne du tableau sans couleur
+				row := []string{
+					pod.Name,
+					containerName,
+					fmt.Sprintf("%d m", cpuUsage),
+					fmt.Sprintf("%d m", cpuRequest),
+					fmt.Sprintf("%d m", cpuLimit),
+					units.BytesSize(float64(memoryUsage)),
+					units.BytesSize(float64(memoryRequest)),
+					units.BytesSize(float64(memoryLimit)),
+				}
+				podTableData = append(podTableData, row)
 			}
 
-			podTableData = append(podTableData, row)
+			// Inverser la valeur de colorgrid
+			colorgrid = !colorgrid
 
 			// Ajouter aux totaux
 			totalCPUUsage += cpuUsage
