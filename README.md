@@ -61,7 +61,7 @@ Metrics for Namespace: networking
 | ...                                          | ...                           | ...       | ...         | ...       | ...       | ...         | ...       |
 
 ## Demo
-[![KramGif](https://github.com/VegaCorporoptions/Kram/assets/116181531/3e3d5abb-db85-4f58-8842-7f4d509d7fbe)](https://github.com/VegaCorporoptions/Kram/blob/main/kram.gif?raw=true)
+![kram](kram.gif)
 
 ## License
 This project is licensed under the MIT License. See the LICENSE file for details.

@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 	"flag"
-	"fmt"
+	"os"
 	"path/filepath"
 
 	"github.com/docker/go-units"
@@ -21,7 +21,7 @@ var (
 	kubeconfig string
 )
 
-// init configure le chemin vers le fichier kubeconfig via un drapeau en ligne de commande
+// init sets up the kubeconfig file path via command-line flag
 func init() {
 	if home := homedir.HomeDir(); home != "" {
 		flag.StringVar(&kubeconfig, "kubeconfig", filepath.Join(home, ".kube", "config"), "(optional) absolute path to the kubeconfig file")
@@ -30,7 +30,6 @@ func init() {
 	}
 }
 
-// main est la fonction d'entrée du programme qui gère la configuration, les arguments et l'affichage des métriques.
 func main() {
 	// Create a multi printer instance
 	multi := pterm.DefaultMultiPrinter
@@ -38,51 +37,47 @@ func main() {
 	// Start the multi printer
 	multi.Start()
 
-	// Initialisation d'un tableau pour stocker les erreurs
+	// Initialize an array to store errors
 	var errorsList []error
 
-	// Analyse des drapeaux (arguments)
+	// Parse flags (arguments)
 	flag.Parse()
-	// Récupérer le namespace à partir de l'argument de ligne de commande, sinon du fichier de configuration
+	// Get the namespace from command-line argument, else from the config file
 	argument := flag.Arg(0)
 
-	// Construction de la configuration en utilisant le kubeconfig spécifié
+	// Building the config using the specified kubeconfig
 	config, err := clientcmd.BuildConfigFromFlags("", kubeconfig)
 	if err != nil {
 		spinner.Fail("Initialization error")
-		multi.Stop()
-		errorsList = append(errorsList, err)
+		os.Exit(1)
 	}
 
-	// Création du clientset pour interagir avec l'API Kubernetes
+	// Create clientset to interact with Kubernetes API
 	clientset, err := kubernetes.NewForConfig(config)
 	if err != nil {
 		spinner.Fail("Initialization error")
-		multi.Stop()
-		errorsList = append(errorsList, err)
+		os.Exit(1)
 	}
 
-	// Création du clientset pour les métriques Kubernetes
+	// Create clientset for Kubernetes metrics
 	metricsClientset, err := metricsv.NewForConfig(config)
 	if err != nil {
 		spinner.Fail("Initialization error")
-		multi.Stop()
-		errorsList = append(errorsList, err)
+		os.Exit(1)
 	}
 
-	// Récupère tous les namespaces si l'argument n'est pas spécifié
+	// Get all namespaces if argument is not specified
 	if argument == "" {
 		namespaces, err := clientset.CoreV1().Namespaces().List(context.TODO(), metav1.ListOptions{})
 		if err != nil {
 			spinner.Fail("Initialization error")
-			multi.Stop()
-			errorsList = append(errorsList, err)
+			os.Exit(1)
 		}
 		spinner.Success("Initialization done")
 		multi.Stop()
 		listNamespaceMetrics(namespaces.Items, clientset, metricsClientset, &errorsList)
 	} else {
-		// Si un argument de namespace est spécifié, afficher les valeurs request et limit de chaque pod dans le namespace.
+		// If a namespace argument is specified, display request and limit values for each pod in the namespace.
 		namespace := &corev1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: argument,
@@ -94,42 +89,42 @@ func main() {
 	}
 
 	if len(errorsList) > 0 {
-		fmt.Printf("\nError(s) :\n")
+		pterm.Warning.Println("Error(s) :")
 		for i, err := range errorsList {
-			fmt.Printf("%d. %v\n", i+1, err)
+			pterm.Printf("%d. %v\n", i+1, err)
 		}
 	}
 }
 
-// listNamespaceMetrics récupère et affiche les métriques de performance des pods cumulés pour tous les namespaces.
+// listNamespaceMetrics retrieves and displays aggregated pod performance metrics for all namespaces.
 func listNamespaceMetrics(namespaces []corev1.Namespace, clientset *kubernetes.Clientset, metricsClientset *metricsv.Clientset, errorsList *[]error) {
-	// Initialiser la bar de progression
+	// Initialize the progress bar
 	bar, _ := pterm.DefaultProgressbar.WithTotal(len(namespaces)).WithTitle("Running").WithRemoveWhenDone().Start()
 
-	// créer une variable pour colorer une ligne sur 2 es tableaux
+	// create a variable to color alternate rows in the tables
 	var colorgrid = false
 
-	// Créer un tableau pour stocker les données
+	// Create a table to store data
 	var podTableData [][]string
-	// Initialiser les colonnes avec des en-têtes
+	// Initialize columns with headers
 	podTableData = append(podTableData, []string{"Namespace", "Pods", "CPU Usage", "CPU Request", "CPU Limit", "Mem Usage", "Mem Request", "Mem Limit"})
 
 	for _, namespace := range namespaces {
-		// Increment de la bar de progression
+		// Increment the progress bar
 		bar.Increment()
 
-		// Liste de tous les pods dans le namespace spécifié
+		// List all pods in the specified namespace
 		pods, err := clientset.CoreV1().Pods(namespace.Name).List(context.TODO(), metav1.ListOptions{})
 		if err != nil {
 			*errorsList = append(*errorsList, err)
 		}
 
-		if (len(pods.Items)) != 0 {
-			// Initialiser des variables pour stocker les données
+		if len(pods.Items) != 0 {
+			// Initialize variables to store data
 			var totalCPUMilliCPU, totalCPURequestMilliCPU, totalCPULimitMilliCPU int64
 			var totalRAMUsageMB, totalRAMRequestMB, totalRAMLimitMB int64
 
-			// Parcourir tous les pods dans la liste et collecter les données
+			// Iterate over all pods in the list and collect data
 			for _, pod := range pods.Items {
 				for _, container := range pod.Spec.Containers {
 					podMetrics, err := metricsClientset.MetricsV1beta1().PodMetricses(namespace.Name).Get(context.TODO(), pod.Name, metav1.GetOptions{})
@@ -152,19 +147,19 @@ func listNamespaceMetrics(namespaces []corev1.Namespace, clientset *kubernetes.C
 					}
 				}
 			}
-			// Attribuer des metrics au valeurs (Mo/Mi)
-			cpuUsage := fmt.Sprintf("%d m", totalCPUMilliCPU)
-			cpuRequest := fmt.Sprintf("%d m", totalCPURequestMilliCPU)
-			cpuLimit := fmt.Sprintf("%d m", totalCPULimitMilliCPU)
+			// Assign metrics to values (Mo/Mi)
+			cpuUsage := pterm.Sprintf("%d m", totalCPUMilliCPU)
+			cpuRequest := pterm.Sprintf("%d m", totalCPURequestMilliCPU)
+			cpuLimit := pterm.Sprintf("%d m", totalCPULimitMilliCPU)
 			memoryUsage := units.BytesSize(float64(totalRAMUsageMB))
 			memoryRequest := units.BytesSize(float64(totalRAMRequestMB))
 			memoryLimit := units.BytesSize(float64(totalRAMLimitMB))
 
 			if colorgrid {
-				// Ajouter les données à la ligne du tableau
+				// Add data to the table row
 				row := []string{
 					pterm.BgDarkGray.Sprint(namespace.Name),
-					pterm.BgDarkGray.Sprint(fmt.Sprint(len(pods.Items))),
+					pterm.BgDarkGray.Sprint(len(pods.Items)),
 					pterm.BgDarkGray.Sprint(cpuUsage),
 					pterm.BgDarkGray.Sprint(cpuRequest),
 					pterm.BgDarkGray.Sprint(cpuLimit),
@@ -174,10 +169,10 @@ func listNamespaceMetrics(namespaces []corev1.Namespace, clientset *kubernetes.C
 				}
 				podTableData = append(podTableData, row)
 			} else {
-				// Ajouter les données à la ligne du tableau sans couleur
+				// Add data to the table row without color
 				row := []string{
 					namespace.Name,
-					fmt.Sprint(len(pods.Items)),
+					pterm.Sprint(len(pods.Items)),
 					cpuUsage,
 					cpuRequest,
 					cpuLimit,
@@ -188,57 +183,57 @@ func listNamespaceMetrics(namespaces []corev1.Namespace, clientset *kubernetes.C
 				podTableData = append(podTableData, row)
 			}
 
-			// Inverser la valeur de colorgrid
+			// Toggle colorgrid value
 			colorgrid = !colorgrid
 		}
 	}
 
-	// Affiche les résultats sous forme tableau
+	// Display results as a table
 	pterm.DefaultTable.WithHeaderRowSeparator("─").WithBoxed().WithHasHeader().WithData(podTableData).Render()
 }
 
-// printNamespaceMetrics récupère et affiche les métriques de performance pour les pods dans un namespace spécifié.
+// printNamespaceMetrics retrieves and displays performance metrics for pods in a specified namespace.
 func printNamespaceMetrics(namespace corev1.Namespace, clientset *kubernetes.Clientset, metricsClientset *metricsv.Clientset, errorsList *[]error) {
-	// Liste de tous les pods dans le namespace spécifié
+	// List all pods in the specified namespace
 	pods, err := clientset.CoreV1().Pods(namespace.Name).List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
 		*errorsList = append(*errorsList, err)
 	}
 
-	// Initialiser la bar de progression
+	// Initialize the progress bar
 	bar, _ := pterm.DefaultProgressbar.WithTotal(len(pods.Items)).WithTitle("Running").WithRemoveWhenDone().Start()
 
-	// créer une variable pour colorer une ligne sur 2 es tableaux
+	// create a variable to color alternate rows in the tables
 	var colorgrid = false
 
-	// Créer un tableau pour stocker les données
+	// Create a table to store data
 	var podTableData [][]string
 
-	// Variables pour le cumul des métriques
+	// Variables for cumulative metrics
 	var totalCPUUsage, totalCPURequest, totalCPULimit int64
 	var totalMemoryUsage, totalMemoryRequest, totalMemoryLimit int64
 
-	// Initialiser les colonnes avec des en-têtes
+	// Initialize columns with headers
 	podTableData = append(podTableData, []string{"Pods", "Container", "CPU Usage", "CPU Request", "CPU Limit", "Mem Usage", "Mem Request", "Mem Limit"})
 
 	for _, pod := range pods.Items {
-		// Increment de la bar de progression
+		// Increment the progress bar
 		bar.Increment()
 
-		// Obtenir les métriques de performance du pod
+		// Get pod performance metrics
 		podMetrics, err := metricsClientset.MetricsV1beta1().PodMetricses(namespace.Name).Get(context.TODO(), pod.Name, metav1.GetOptions{})
 		if err != nil {
 			*errorsList = append(*errorsList, err)
 		}
 
-		// Obtenir les métriques de performance des pods
+		// Get pod performance metrics
 		for _, containerMetrics := range podMetrics.Containers {
 			var cpuRequest int64
 			var memoryRequest int64
 
 			usage := containerMetrics.Usage
 
-			// Trouver le conteneur correspondant dans la spécification du pod
+			// Find the matching container in the pod spec
 			var containerSpec corev1.Container
 			for _, container := range pod.Spec.Containers {
 				if container.Name == containerMetrics.Name {
@@ -263,26 +258,26 @@ func printNamespaceMetrics(namespace corev1.Namespace, clientset *kubernetes.Cli
 			memoryLimit := limits.Memory().Value()
 
 			if colorgrid {
-				// Ajouter les données à la ligne du tableau avec les unités appropriées
+				// Add data to the table row with appropriate units
 				row := []string{
 					pterm.BgDarkGray.Sprint(pod.Name),
 					pterm.BgDarkGray.Sprint(containerName),
-					pterm.BgDarkGray.Sprint(fmt.Sprintf("%d m", cpuUsage)),
-					pterm.BgDarkGray.Sprint(fmt.Sprintf("%d m", cpuRequest)),
-					pterm.BgDarkGray.Sprint(fmt.Sprintf("%d m", cpuLimit)),
+					pterm.BgDarkGray.Sprintf("%d m", cpuUsage),
+					pterm.BgDarkGray.Sprintf("%d m", cpuRequest),
+					pterm.BgDarkGray.Sprintf("%d m", cpuLimit),
 					pterm.BgDarkGray.Sprint(units.BytesSize(float64(memoryUsage))),
 					pterm.BgDarkGray.Sprint(units.BytesSize(float64(memoryRequest))),
 					pterm.BgDarkGray.Sprint(units.BytesSize(float64(memoryLimit))),
 				}
 				podTableData = append(podTableData, row)
 			} else {
-				// Ajouter les données à la ligne du tableau sans couleur
+				// Add data to the table row without color
 				row := []string{
 					pod.Name,
 					containerName,
-					fmt.Sprintf("%d m", cpuUsage),
-					fmt.Sprintf("%d m", cpuRequest),
-					fmt.Sprintf("%d m", cpuLimit),
+					pterm.Sprintf("%d m", cpuUsage),
+					pterm.Sprintf("%d m", cpuRequest),
+					pterm.Sprintf("%d m", cpuLimit),
 					units.BytesSize(float64(memoryUsage)),
 					units.BytesSize(float64(memoryRequest)),
 					units.BytesSize(float64(memoryLimit)),
@@ -290,10 +285,10 @@ func printNamespaceMetrics(namespace corev1.Namespace, clientset *kubernetes.Cli
 				podTableData = append(podTableData, row)
 			}
 
-			// Inverser la valeur de colorgrid
+			// Toggle colorgrid value
 			colorgrid = !colorgrid
 
-			// Ajouter aux totaux
+			// Add to totals
 			totalCPUUsage += cpuUsage
 			totalCPURequest += cpuRequest
 			totalCPULimit += cpuLimit
@@ -303,15 +298,15 @@ func printNamespaceMetrics(namespace corev1.Namespace, clientset *kubernetes.Cli
 		}
 	}
 
-	// Formater les totaux avec les unités appropriées
-	FormattedTotalCPUUsage := fmt.Sprintf("%d m", totalCPUUsage)
-	formattedTotalCPURequest := fmt.Sprintf("%d m", totalCPURequest)
-	formattedTotalCPULimit := fmt.Sprintf("%d m", totalCPULimit)
+	// Format totals with appropriate units
+	FormattedTotalCPUUsage := pterm.Sprintf("%d m", totalCPUUsage)
+	formattedTotalCPURequest := pterm.Sprintf("%d m", totalCPURequest)
+	formattedTotalCPULimit := pterm.Sprintf("%d m", totalCPULimit)
 	formattedTotalMemoryUsage := units.HumanSize(float64(totalMemoryUsage))
 	formattedTotalMemoryRequest := units.HumanSize(float64(totalMemoryRequest))
 	formattedTotalMemoryLimit := units.HumanSize(float64(totalMemoryLimit))
 
-	// Ajouter une ligne pour le total
+	// Add a row for total
 	totalPods := []string{
 		"Total",
 		"",
@@ -325,9 +320,9 @@ func printNamespaceMetrics(namespace corev1.Namespace, clientset *kubernetes.Cli
 
 	podTableData = append(podTableData, totalPods)
 
-	// Imprimer le nom du namespace
-	fmt.Printf("Metrics for Namespace: %s\n", namespace.Name)
+	// Print the namespace name
+	pterm.Printf("Metrics for Namespace: %s\n", namespace.Name)
 
-	// Affiche les résultats sous forme tableau
+	// Display results as a table
 	pterm.DefaultTable.WithHeaderRowSeparator("─").WithBoxed().WithHasHeader().WithData(podTableData).Render()
 }
