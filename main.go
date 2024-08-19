@@ -17,8 +17,13 @@ import (
 	metricsv "k8s.io/metrics/pkg/client/clientset/versioned"
 )
 
+const (
+	colorgrid = pterm.BgDarkGray
+)
+
 var (
-	kubeconfig string
+	kubeconfig     string
+	alternateStyle = pterm.NewStyle(colorgrid) // Set alternate row style grey
 )
 
 // init sets up the kubeconfig file path via command-line flag
@@ -155,33 +160,18 @@ func listNamespaceMetrics(namespaces []corev1.Namespace, clientset *kubernetes.C
 			memoryRequest := units.BytesSize(float64(totalRAMRequestMB))
 			memoryLimit := units.BytesSize(float64(totalRAMLimitMB))
 
-			if colorgrid {
-				// Add data to the table row
-				row := []string{
-					pterm.BgDarkGray.Sprint(namespace.Name),
-					pterm.BgDarkGray.Sprint(len(pods.Items)),
-					pterm.BgDarkGray.Sprint(cpuUsage),
-					pterm.BgDarkGray.Sprint(cpuRequest),
-					pterm.BgDarkGray.Sprint(cpuLimit),
-					pterm.BgDarkGray.Sprint(memoryUsage),
-					pterm.BgDarkGray.Sprint(memoryRequest),
-					pterm.BgDarkGray.Sprint(memoryLimit),
-				}
-				podTableData = append(podTableData, row)
-			} else {
-				// Add data to the table row without color
-				row := []string{
-					namespace.Name,
-					pterm.Sprint(len(pods.Items)),
-					cpuUsage,
-					cpuRequest,
-					cpuLimit,
-					memoryUsage,
-					memoryRequest,
-					memoryLimit,
-				}
-				podTableData = append(podTableData, row)
+			// Add data to the table row without color
+			row := []string{
+				namespace.Name,
+				pterm.Sprint(len(pods.Items)),
+				cpuUsage,
+				cpuRequest,
+				cpuLimit,
+				memoryUsage,
+				memoryRequest,
+				memoryLimit,
 			}
+			podTableData = append(podTableData, row)
 
 			// Toggle colorgrid value
 			colorgrid = !colorgrid
@@ -189,7 +179,7 @@ func listNamespaceMetrics(namespaces []corev1.Namespace, clientset *kubernetes.C
 	}
 
 	// Display results as a table
-	pterm.DefaultTable.WithHeaderRowSeparator("─").WithBoxed().WithHasHeader().WithData(podTableData).Render()
+	pterm.DefaultTable.WithHeaderRowSeparator("─").WithBoxed().WithHasHeader().WithAlternateRowStyle(alternateStyle).WithData(podTableData).Render()
 }
 
 // printNamespaceMetrics retrieves and displays performance metrics for pods in a specified namespace.
@@ -257,33 +247,17 @@ func printNamespaceMetrics(namespace corev1.Namespace, clientset *kubernetes.Cli
 			memoryRequest = requests.Memory().Value()
 			memoryLimit := limits.Memory().Value()
 
-			if colorgrid {
-				// Add data to the table row with appropriate units
-				row := []string{
-					pterm.BgDarkGray.Sprint(pod.Name),
-					pterm.BgDarkGray.Sprint(containerName),
-					pterm.BgDarkGray.Sprintf("%d m", cpuUsage),
-					pterm.BgDarkGray.Sprintf("%d m", cpuRequest),
-					pterm.BgDarkGray.Sprintf("%d m", cpuLimit),
-					pterm.BgDarkGray.Sprint(units.BytesSize(float64(memoryUsage))),
-					pterm.BgDarkGray.Sprint(units.BytesSize(float64(memoryRequest))),
-					pterm.BgDarkGray.Sprint(units.BytesSize(float64(memoryLimit))),
-				}
-				podTableData = append(podTableData, row)
-			} else {
-				// Add data to the table row without color
-				row := []string{
-					pod.Name,
-					containerName,
-					pterm.Sprintf("%d m", cpuUsage),
-					pterm.Sprintf("%d m", cpuRequest),
-					pterm.Sprintf("%d m", cpuLimit),
-					units.BytesSize(float64(memoryUsage)),
-					units.BytesSize(float64(memoryRequest)),
-					units.BytesSize(float64(memoryLimit)),
-				}
-				podTableData = append(podTableData, row)
+			row := []string{
+				pod.Name,
+				containerName,
+				pterm.Sprintf("%d m", cpuUsage),
+				pterm.Sprintf("%d m", cpuRequest),
+				pterm.Sprintf("%d m", cpuLimit),
+				units.BytesSize(float64(memoryUsage)),
+				units.BytesSize(float64(memoryRequest)),
+				units.BytesSize(float64(memoryLimit)),
 			}
+			podTableData = append(podTableData, row)
 
 			// Toggle colorgrid value
 			colorgrid = !colorgrid
@@ -324,5 +298,5 @@ func printNamespaceMetrics(namespace corev1.Namespace, clientset *kubernetes.Cli
 	pterm.Printf("Metrics for Namespace: %s\n", namespace.Name)
 
 	// Display results as a table
-	pterm.DefaultTable.WithHeaderRowSeparator("─").WithBoxed().WithHasHeader().WithData(podTableData).Render()
+	pterm.DefaultTable.WithHeaderRowSeparator("─").WithBoxed().WithHasHeader().WithAlternateRowStyle(alternateStyle).WithData(podTableData).Render()
 }
