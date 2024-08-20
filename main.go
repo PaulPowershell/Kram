@@ -106,9 +106,6 @@ func listNamespaceMetrics(namespaces []corev1.Namespace, clientset *kubernetes.C
 	// Initialize the progress bar
 	bar, _ := pterm.DefaultProgressbar.WithTotal(len(namespaces)).WithTitle("Running").WithRemoveWhenDone().Start()
 
-	// create a variable to color alternate rows in the tables
-	var colorgrid = false
-
 	// Create a table to store data
 	var podTableData [][]string
 	// Initialize columns with headers
@@ -172,9 +169,6 @@ func listNamespaceMetrics(namespaces []corev1.Namespace, clientset *kubernetes.C
 				memoryLimit,
 			}
 			podTableData = append(podTableData, row)
-
-			// Toggle colorgrid value
-			colorgrid = !colorgrid
 		}
 	}
 
@@ -276,9 +270,9 @@ func printNamespaceMetrics(namespace corev1.Namespace, clientset *kubernetes.Cli
 	FormattedTotalCPUUsage := pterm.Sprintf("%d m", totalCPUUsage)
 	formattedTotalCPURequest := pterm.Sprintf("%d m", totalCPURequest)
 	formattedTotalCPULimit := pterm.Sprintf("%d m", totalCPULimit)
-	formattedTotalMemoryUsage := units.HumanSize(float64(totalMemoryUsage))
-	formattedTotalMemoryRequest := units.HumanSize(float64(totalMemoryRequest))
-	formattedTotalMemoryLimit := units.HumanSize(float64(totalMemoryLimit))
+	formattedTotalMemoryUsage := units.BytesSize(float64(totalMemoryUsage))
+	formattedTotalMemoryRequest := units.BytesSize(float64(totalMemoryRequest))
+	formattedTotalMemoryLimit := units.BytesSize(float64(totalMemoryLimit))
 
 	// Add a row for total
 	totalPods := []string{
