@@ -187,9 +187,6 @@ func printNamespaceMetrics(namespace corev1.Namespace, clientset *kubernetes.Cli
 	// Initialize the progress bar
 	bar, _ := pterm.DefaultProgressbar.WithTotal(len(pods.Items)).WithTitle("Running").WithRemoveWhenDone().Start()
 
-	// create a variable to color alternate rows in the tables
-	var colorgrid = false
-
 	// Create a table to store data
 	var podTableData [][]string
 
@@ -252,9 +249,6 @@ func printNamespaceMetrics(namespace corev1.Namespace, clientset *kubernetes.Cli
 				units.BytesSize(float64(memoryLimit)),
 			}
 			podTableData = append(podTableData, row)
-
-			// Toggle colorgrid value
-			colorgrid = !colorgrid
 
 			// Add to totals
 			totalCPUUsage += cpuUsage
