@@ -143,27 +143,29 @@ jobs:
           "newtagversion=$newVersion" | Out-File -FilePath $env:GITHUB_OUTPUT
         shell: pwsh
 
-      - name: Debug new tag
-        run: | 
-          echo "New tag: ${{ steps.increment_tag.outputs.newtagversion }}"
-
-      - name: Debug GITHUB_REF
-        run: echo "GITHUB_REF is $GITHUB_REF"
-
-      - name: Fetch all tags
-        run: git fetch --tags
-
+      # - name: Create Release
+      #   uses: phuonghuynh/action-ghrelease@v1.1.0
+      #   id: create_release
+      #   with:
+      #     draft: false
+      #     prerelease: false
+      #     name: Kram ${{ steps.increment_tag.outputs.newtagversion }}
+      #     tag_name: ${{ steps.increment_tag.outputs.newtagversion }}
+      #     body: Auto Release ${{ steps.increment_tag.outputs.newtagversion }}
+      #   env:
+      #     GITHUB_TOKEN: ${{ github.token }}
       - name: Create Release
-        uses: phuonghuynh/action-ghrelease@v1.1.0
         id: create_release
+        uses: softprops/action-gh-release@v1
         with:
+          tag_name: ${{ steps.increment_tag.outputs.newtagversion }}
+          name: Kram ${{ steps.increment_tag.outputs.newtagversion }}
+          body: Auto Release ${{ steps.increment_tag.outputs.newtagversion }}
           draft: false
           prerelease: false
-          name: Kram ${{ steps.increment_tag.outputs.newtagversion }}
-          tag_name: ${{ steps.increment_tag.outputs.newtagversion }}
-          body: Auto Release ${{ steps.increment_tag.outputs.newtagversion }}
         env:
-          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
 
       - name: Upload Linux32 Artifact
         uses: sekwah41/upload-release-assets@v1.1.0
