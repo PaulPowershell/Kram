@@ -153,6 +153,8 @@ jobs:
           body: Auto Release ${{ steps.increment_tag.outputs.newtagversion }}
         env:
           GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_REF: main
+          GITHUB_REPOSITORY: PaulPowershell/Kram
 
       - name: Upload Linux32 Artifact
         uses: sekwah41/upload-release-assets@v1.1.0
