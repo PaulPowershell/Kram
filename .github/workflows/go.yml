@@ -6,189 +6,190 @@ name: Go Build & Release
 on:
   push:
     branches:
-      - 'main'
+      - "main"
 
 jobs:
   build-windows-386:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v3
+      - uses: actions/checkout@v3
 
-    - name: Set up Go
-      uses: actions/setup-go@v4
-      with:
-        go-version: '1.21'
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: "1.21"
 
-    - name: Build Go
-      run: |
-        GOOS=windows GOARCH=386 go build -v -o kram-386.exe
+      - name: Build Go
+        run: |
+          GOOS=windows GOARCH=386 go build -v -o kram-386.exe
 
-    - name: Cache Dependencies
-      uses: actions/cache@v4
-      with:
-        path: ./kram-386.exe
-        key: ${{ github.run_id }}-cache-build-key-1
-        
+      - name: Cache Dependencies
+        uses: actions/cache@v4
+        with:
+          path: ./kram-386.exe
+          key: ${{ github.run_id }}-cache-build-key-1
+
   build-windows-64:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v3
-  
-    - name: Set up Go
-      uses: actions/setup-go@v4
-      with:
-        go-version: '1.21'
-  
-    - name: Build Go
-      run: |
-        GOOS=windows GOARCH=amd64 go build -v -o kram-amd64.exe
-  
-    - name: Cache Dependencies
-      uses: actions/cache@v4
-      with:
-        path: ./kram-amd64.exe
-        key: ${{ github.run_id }}-cache-build-key-2
-        
+      - uses: actions/checkout@v3
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: "1.21"
+
+      - name: Build Go
+        run: |
+          GOOS=windows GOARCH=amd64 go build -v -o kram-amd64.exe
+
+      - name: Cache Dependencies
+        uses: actions/cache@v4
+        with:
+          path: ./kram-amd64.exe
+          key: ${{ github.run_id }}-cache-build-key-2
+
   build-linux-386:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v3
+      - uses: actions/checkout@v3
 
-    - name: Set up Go
-      uses: actions/setup-go@v4
-      with:
-        go-version: '1.21'
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: "1.21"
 
-    - name: Build Go
-      run: |
-        GOOS=linux GOARCH=386 go build -v -o kram-386-linux
+      - name: Build Go
+        run: |
+          GOOS=linux GOARCH=386 go build -v -o kram-386-linux
 
-    - name: Cache Dependencies
-      uses: actions/cache@v4
-      with:
-        path: ./kram-386-linux
-        key: ${{ github.run_id }}-cache-build-key-3
+      - name: Cache Dependencies
+        uses: actions/cache@v4
+        with:
+          path: ./kram-386-linux
+          key: ${{ github.run_id }}-cache-build-key-3
 
   build-linux-64:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v3
+      - uses: actions/checkout@v3
 
-    - name: Set up Go
-      uses: actions/setup-go@v4
-      with:
-        go-version: '1.21'
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: "1.21"
 
-    - name: Build Go
-      run: |
-        GOOS=linux GOARCH=amd64 go build -v -o kram-amd64-linux
+      - name: Build Go
+        run: |
+          GOOS=linux GOARCH=amd64 go build -v -o kram-amd64-linux
 
-    - name: Cache Dependencies
-      uses: actions/cache@v4
-      with:
-        path: ./kram-amd64-linux
-        key: ${{ github.run_id }}-cache-build-key-4
+      - name: Cache Dependencies
+        uses: actions/cache@v4
+        with:
+          path: ./kram-amd64-linux
+          key: ${{ github.run_id }}-cache-build-key-4
 
   create-release:
     runs-on: ubuntu-latest
-    needs: [build-windows-386,build-linux-386,build-windows-64,build-linux-64]
+    needs:
+      [build-windows-386, build-linux-386, build-windows-64, build-linux-64]
     if: ${{ success() }}
     steps:
-    - uses: actions/checkout@v3
+      - uses: actions/checkout@v3
 
-    - name: Restore Cache
-      uses: actions/cache@v4
-      with:
-        path: ./kram-386.exe
-        key: ${{ github.run_id }}-cache-build-key-1
+      - name: Restore Cache
+        uses: actions/cache@v4
+        with:
+          path: ./kram-386.exe
+          key: ${{ github.run_id }}-cache-build-key-1
 
-    - name: Restore Cache
-      uses: actions/cache@v4
-      with:
-        path: ./kram-amd64.exe
-        key: ${{ github.run_id }}-cache-build-key-2
+      - name: Restore Cache
+        uses: actions/cache@v4
+        with:
+          path: ./kram-amd64.exe
+          key: ${{ github.run_id }}-cache-build-key-2
 
-    - name: Restore Cache
-      uses: actions/cache@v4
-      with:
-        path: ./kram-386-linux
-        key: ${{ github.run_id }}-cache-build-key-3
+      - name: Restore Cache
+        uses: actions/cache@v4
+        with:
+          path: ./kram-386-linux
+          key: ${{ github.run_id }}-cache-build-key-3
 
-    - name: Restore Cache
-      uses: actions/cache@v4
-      with:
-        path: ./kram-amd64-linux
-        key: ${{ github.run_id }}-cache-build-key-4
+      - name: Restore Cache
+        uses: actions/cache@v4
+        with:
+          path: ./kram-amd64-linux
+          key: ${{ github.run_id }}-cache-build-key-4
 
-    - name: Get Last Release
-      id: get_last_release
-      uses: joutvhu/get-release@v1.0.2
-      with:
-        # Should get latest release?
-        latest: true
-        debug: true
-      env:
-        GITHUB_TOKEN: ${{ github.token }}
+      - name: Get Last Release
+        id: get_last_release
+        uses: joutvhu/get-release@v1.0.2
+        with:
+          # Should get latest release?
+          latest: true
+          debug: true
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
 
-    - name: Increment Last Tag Version
-      id: increment_tag
-      run: |
-        $version = "${{ steps.get_last_release.outputs.tag_name }}"
-        $versionParts = $version -split '\.'
-        $versionParts[-1] = [int]$versionParts[-1] + 1
-        $newVersion = $versionParts -join '.'
-        Write-Host "$newVersion"
-        "newtagversion=$newVersion" | Out-File -FilePath $env:GITHUB_OUTPUT 
-      shell: pwsh
+      - name: Increment Last Tag Version
+        id: increment_tag
+        run: |
+          $version = "${{ steps.get_last_release.outputs.tag_name }}"
+          $versionParts = $version -split '\.'
+          $versionParts[-1] = [int]$versionParts[-1] + 1
+          $newVersion = $versionParts -join '.'
+          Write-Host "New version: $newVersion"
+          "newtagversion=$newVersion" | Out-File -FilePath $env:GITHUB_OUTPUT
+        shell: pwsh
 
-    - name: Create Release
-      uses: actions/create-release@v1
-      id: create_release
-      with:
-        draft: false
-        prerelease: false
-        release_name: Kram ${{ steps.increment_tag.outputs.newtagversion }}
-        tag_name: ${{ steps.increment_tag.outputs.newtagversion }}
-        body: Auto Release ${{ steps.increment_tag.outputs.newtagversion }}
-      env:
-        GITHUB_TOKEN: ${{ github.token }}
-        
-    - name: Upload Linux32 Artifact
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ github.token }}
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: ./kram-386-linux
-        asset_name: kram-386-linux
-        asset_content_type: application/gzip
+      - name: Create Release
+        uses: phuonghuynh/action-ghrelease@v1.1.0
+        id: create_release
+        with:
+          draft: false
+          prerelease: false
+          name: Kram ${{ steps.increment_tag.outputs.newtagversion }}
+          tag_name: ${{ steps.increment_tag.outputs.newtagversion }}
+          body: Auto Release ${{ steps.increment_tag.outputs.newtagversion }}
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
 
-    - name: Upload Linux64 Artifact
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ github.token }}
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: ./kram-amd64-linux
-        asset_name: kram-amd64-linux
-        asset_content_type: application/gzip
+      - name: Upload Linux32 Artifact
+        uses: sekwah41/upload-release-assets@v1.1.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./kram-386-linux
+          asset_name: kram-386-linux
+          asset_content_type: application/gzip
 
-    - name: Upload Windows32 Artifact
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ github.token }}
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: ./kram-386.exe
-        asset_name: kram-386.exe
-        asset_content_type: application/gzip
+      - name: Upload Linux64 Artifact
+        uses: sekwah41/upload-release-assets@v1.1.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./kram-amd64-linux
+          asset_name: kram-amd64-linux
+          asset_content_type: application/gzip
 
-    - name: Upload Windows64 Artifact
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ github.token }}
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: ./kram-amd64.exe
-        asset_name: kram-amd64.exe
-        asset_content_type: application/gzip
+      - name: Upload Windows32 Artifact
+        uses: sekwah41/upload-release-assets@v1.1.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./kram-386.exe
+          asset_name: kram-386.exe
+          asset_content_type: application/gzip
+
+      - name: Upload Windows64 Artifact
+        uses: sekwah41/upload-release-assets@v1.1.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./kram-amd64.exe
+          asset_name: kram-amd64.exe
+          asset_content_type: application/gzip
