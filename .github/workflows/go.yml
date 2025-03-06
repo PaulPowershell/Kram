@@ -24,7 +24,7 @@ jobs:
         GOOS=windows GOARCH=386 go build -v -o kram-386.exe
 
     - name: Cache Dependencies
-      uses: actions/cache@v2
+      uses: actions/cache@v4
       with:
         path: ./kram-386.exe
         key: ${{ github.run_id }}-cache-build-key-1
@@ -44,7 +44,7 @@ jobs:
         GOOS=windows GOARCH=amd64 go build -v -o kram-amd64.exe
   
     - name: Cache Dependencies
-      uses: actions/cache@v2
+      uses: actions/cache@v4
       with:
         path: ./kram-amd64.exe
         key: ${{ github.run_id }}-cache-build-key-2
@@ -64,7 +64,7 @@ jobs:
         GOOS=linux GOARCH=386 go build -v -o kram-386-linux
 
     - name: Cache Dependencies
-      uses: actions/cache@v2
+      uses: actions/cache@v4
       with:
         path: ./kram-386-linux
         key: ${{ github.run_id }}-cache-build-key-3
@@ -84,7 +84,7 @@ jobs:
         GOOS=linux GOARCH=amd64 go build -v -o kram-amd64-linux
 
     - name: Cache Dependencies
-      uses: actions/cache@v2
+      uses: actions/cache@v4
       with:
         path: ./kram-amd64-linux
         key: ${{ github.run_id }}-cache-build-key-4
@@ -97,25 +97,25 @@ jobs:
     - uses: actions/checkout@v3
 
     - name: Restore Cache
-      uses: actions/cache@v2
+      uses: actions/cache@v4
       with:
         path: ./kram-386.exe
         key: ${{ github.run_id }}-cache-build-key-1
 
     - name: Restore Cache
-      uses: actions/cache@v2
+      uses: actions/cache@v4
       with:
         path: ./kram-amd64.exe
         key: ${{ github.run_id }}-cache-build-key-2
 
     - name: Restore Cache
-      uses: actions/cache@v2
+      uses: actions/cache@v4
       with:
         path: ./kram-386-linux
         key: ${{ github.run_id }}-cache-build-key-3
 
     - name: Restore Cache
-      uses: actions/cache@v2
+      uses: actions/cache@v4
       with:
         path: ./kram-amd64-linux
         key: ${{ github.run_id }}-cache-build-key-4
