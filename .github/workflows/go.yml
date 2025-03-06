@@ -138,7 +138,7 @@ jobs:
         $versionParts[-1] = [int]$versionParts[-1] + 1
         $newVersion = $versionParts -join '.'
         Write-Host "$newVersion"
-        Write-Output "::set-output name=newtagversion::$newVersion"
+        "newtagversion=$newVersion" | Out-File -FilePath $env:GITHUB_OUTPUT 
       shell: pwsh
 
     - name: Create Release
