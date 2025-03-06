@@ -147,9 +147,11 @@ jobs:
         run: | 
           echo "New tag: ${{ steps.increment_tag.outputs.newtagversion }}"
 
-      - name: Create Tag
-        run: | 
-          git tag ${{ steps.increment_tag.outputs.newtagversion }} && git push origin ${{ steps.increment_tag.outputs.newtagversion }}
+      - name: Debug GITHUB_REF
+        run: echo "GITHUB_REF is $GITHUB_REF"
+
+      - name: Fetch all tags
+        run: git fetch --tags
 
       - name: Create Release
         uses: phuonghuynh/action-ghrelease@v1.1.0
