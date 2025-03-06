@@ -154,7 +154,6 @@ jobs:
           draft: false
           prerelease: false
           name: Kram ${{ steps.increment_tag.outputs.newtagversion }}
-          tag_name: ${{ steps.increment_tag.outputs.newtagversion }}
           body: Auto Release ${{ steps.increment_tag.outputs.newtagversion }}
         env:
           GITHUB_TOKEN: ${{ github.token }}
