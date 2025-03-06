@@ -4,9 +4,10 @@
 name: Go Build & Release
 
 on:
-  push:
+  push: 
     branches:
-      - "main"
+      # - "main"
+      - "Fix-action"
 
 jobs:
   build-windows-386:
@@ -142,6 +143,10 @@ jobs:
           "newtagversion=$newVersion" | Out-File -FilePath $env:GITHUB_OUTPUT
         shell: pwsh
 
+      - name: Debug new tag
+        run: | 
+          echo "New tag: ${{ steps.increment_tag.outputs.newtagversion }}"
+
       - name: Create Release
         uses: phuonghuynh/action-ghrelease@v1.1.0
         id: create_release
@@ -153,8 +158,6 @@ jobs:
           body: Auto Release ${{ steps.increment_tag.outputs.newtagversion }}
         env:
           GITHUB_TOKEN: ${{ github.token }}
-          GITHUB_REF: main
-          GITHUB_REPOSITORY: PaulPowershell/Kram
 
       - name: Upload Linux32 Artifact
         uses: sekwah41/upload-release-assets@v1.1.0
