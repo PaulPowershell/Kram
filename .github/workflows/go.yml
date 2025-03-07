@@ -6,7 +6,7 @@ name: Go Build & Release
 on:
   push:
     branches:
-      # - "main"
+      - "main"
       - "Fix-action"
 
 jobs:
