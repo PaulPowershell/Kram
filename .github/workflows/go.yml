@@ -31,8 +31,12 @@ jobs:
       - name: Cache Build Artifacts
         uses: actions/cache@v4
         with:
-          path: ./kram-${{ matrix.arch }}-${{ matrix.os }}
-          key: ${{ github.run_id }}-cache-build-${{ matrix.os }}-${{ matrix.arch }}
+          path: |
+            ./kram-386.exe
+            ./kram-amd64.exe
+            ./kram-386-linux
+            ./kram-amd64-linux
+          key: cache-build-${{ github.sha }}
 
   create-release:
     runs-on: ubuntu-latest
@@ -49,7 +53,7 @@ jobs:
             ./kram-amd64.exe
             ./kram-386-linux
             ./kram-amd64-linux
-          key: ${{ github.run_id }}-cache-build
+          key: cache-build-${{ github.sha }}
 
       - name: Get Last Release
         id: get_last_release
