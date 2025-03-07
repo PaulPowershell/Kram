@@ -4,7 +4,7 @@
 name: Go Build & Release
 
 on:
-  push: 
+  push:
     branches:
       # - "main"
       - "Fix-action"
@@ -163,46 +163,11 @@ jobs:
           body: Auto Release ${{ steps.increment_tag.outputs.newtagversion }}
           draft: false
           prerelease: false
+          generate_release_notes: true
+          files: |
+            ./kram-386-linux
+            ./kram-amd64-linux
+            ./kram-386.exe
+            ./kram-amd64.exe
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-
-      - name: Upload Linux32 Artifact
-        uses: sekwah41/upload-release-assets@v1.1.0
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./kram-386-linux
-          asset_name: kram-386-linux
-          asset_content_type: application/gzip
-
-      - name: Upload Linux64 Artifact
-        uses: sekwah41/upload-release-assets@v1.1.0
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./kram-amd64-linux
-          asset_name: kram-amd64-linux
-          asset_content_type: application/gzip
-
-      - name: Upload Windows32 Artifact
-        uses: sekwah41/upload-release-assets@v1.1.0
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./kram-386.exe
-          asset_name: kram-386.exe
-          asset_content_type: application/gzip
-
-      - name: Upload Windows64 Artifact
-        uses: sekwah41/upload-release-assets@v1.1.0
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./kram-amd64.exe
-          asset_name: kram-amd64.exe
-          asset_content_type: application/gzip
