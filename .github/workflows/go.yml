@@ -44,13 +44,8 @@ jobs:
       - name: Restore Cache
         uses: actions/cache@v4
         with:
-          path: |
-            ./kram-386-windows
-            ./build/kram-amd64-windows
+          path: ./kram-386-windows
           key: ${{ github.run_id }}-cache-build
-
-      - name: Verify Files
-        run: ls ./kram-*
 
       - name: Restore Cache
         uses: actions/cache@v4
