@@ -83,6 +83,9 @@ jobs:
           prerelease: false
           generate_release_notes: true
           files: |
-            ./kram-${{ matrix.arch }}-${{ matrix.os }}
+            ./kram-386-windows
+            ./kram-amd64-windows
+            ./kram-386-linux
+            ./kram-amd64-linux
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
