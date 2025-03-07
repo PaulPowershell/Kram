@@ -16,6 +16,7 @@ jobs:
       matrix:
         os: [windows, linux]
         arch: [386, amd64]
+        number: [1, 2, 3, 4]
     steps:
       - uses: actions/checkout@v3
 
@@ -32,14 +33,10 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ./kram-${{ matrix.arch }}-${{ matrix.os }}
-          key: ${{ github.run_id }}-${{ matrix.arch }}-${{ matrix.os }}
+          key: ${{ github.run_id }}-cache-build-key-${{ matrix.number }}
 
   create-release:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        os: [windows, linux]
-        arch: [386, amd64]
     needs: build
     if: ${{ success() }}
     steps:
@@ -48,9 +45,26 @@ jobs:
       - name: Restore Cache
         uses: actions/cache@v4
         with:
-          path: |
-            ./kram-${{ matrix.arch }}-${{ matrix.os }}
-          key: ${{ github.run_id }}-${{ matrix.arch }}-${{ matrix.os }}
+          path: ./kram-386
+          key: ${{ github.run_id }}-cache-build-key-1
+
+      - name: Restore Cache
+        uses: actions/cache@v4
+        with:
+          path: ./kram-amd64
+          key: ${{ github.run_id }}-cache-build-key-2
+
+      - name: Restore Cache
+        uses: actions/cache@v4
+        with:
+          path: ./kram-386-linux
+          key: ${{ github.run_id }}-cache-build-key-3
+
+      - name: Restore Cache
+        uses: actions/cache@v4
+        with:
+          path: ./kram-amd64-linux
+          key: ${{ github.run_id }}-cache-build-key-4
 
       - name: Get Last Release
         id: get_last_release
@@ -85,7 +99,7 @@ jobs:
           files: |
             ./kram-386-linux
             ./kram-amd64-linux
-            ./kram-386-windows
-            ./kram-amd64-windows
+            ./kram-386
+            ./kram-amd64
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
