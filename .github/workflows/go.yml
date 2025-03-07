@@ -40,8 +40,6 @@ jobs:
     if: ${{ success() }}
     steps:
       - uses: actions/checkout@v3
-      - name: Verify Files
-        run: ls -la ./kram-*
 
       - name: Restore Cache
         uses: actions/cache@v4
@@ -50,6 +48,9 @@ jobs:
             ./kram-386-windows
             ./build/kram-amd64-windows
           key: ${{ github.run_id }}-cache-build
+
+      - name: Verify Files
+        run: ls ./kram-*
 
       - name: Restore Cache
         uses: actions/cache@v4
