@@ -10,8 +10,12 @@ on:
       - "Fix-action"
 
 jobs:
-  build-windows-386:
+  build:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        os: [windows, linux]
+        arch: [386, amd64]
     steps:
       - uses: actions/checkout@v3
 
@@ -22,78 +26,17 @@ jobs:
 
       - name: Build Go
         run: |
-          GOOS=windows GOARCH=386 go build -v -o kram-386.exe
+          GOOS=${{ matrix.os }} GOARCH=${{ matrix.arch }} go build -v -o kram-${{ matrix.arch }}-${{ matrix.os }}
 
-      - name: Cache Dependencies
+      - name: Cache Build Artifacts
         uses: actions/cache@v4
         with:
-          path: ./kram-386.exe
-          key: ${{ github.run_id }}-cache-build-key-1
-
-  build-windows-64:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-
-      - name: Set up Go
-        uses: actions/setup-go@v4
-        with:
-          go-version: "1.21"
-
-      - name: Build Go
-        run: |
-          GOOS=windows GOARCH=amd64 go build -v -o kram-amd64.exe
-
-      - name: Cache Dependencies
-        uses: actions/cache@v4
-        with:
-          path: ./kram-amd64.exe
-          key: ${{ github.run_id }}-cache-build-key-2
-
-  build-linux-386:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-
-      - name: Set up Go
-        uses: actions/setup-go@v4
-        with:
-          go-version: "1.21"
-
-      - name: Build Go
-        run: |
-          GOOS=linux GOARCH=386 go build -v -o kram-386-linux
-
-      - name: Cache Dependencies
-        uses: actions/cache@v4
-        with:
-          path: ./kram-386-linux
-          key: ${{ github.run_id }}-cache-build-key-3
-
-  build-linux-64:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-
-      - name: Set up Go
-        uses: actions/setup-go@v4
-        with:
-          go-version: "1.21"
-
-      - name: Build Go
-        run: |
-          GOOS=linux GOARCH=amd64 go build -v -o kram-amd64-linux
-
-      - name: Cache Dependencies
-        uses: actions/cache@v4
-        with:
-          path: ./kram-amd64-linux
-          key: ${{ github.run_id }}-cache-build-key-4
+          path: ./kram-${{ matrix.arch }}-${{ matrix.os }}
+          key: ${{ github.run_id }}-cache-build-${{ matrix.os }}-${{ matrix.arch }}
 
   create-release:
     runs-on: ubuntu-latest
-    needs:
-      [build-windows-386, build-linux-386, build-windows-64, build-linux-64]
+    needs: build
     if: ${{ success() }}
     steps:
       - uses: actions/checkout@v3
@@ -101,32 +44,17 @@ jobs:
       - name: Restore Cache
         uses: actions/cache@v4
         with:
-          path: ./kram-386.exe
-          key: ${{ github.run_id }}-cache-build-key-1
-
-      - name: Restore Cache
-        uses: actions/cache@v4
-        with:
-          path: ./kram-amd64.exe
-          key: ${{ github.run_id }}-cache-build-key-2
-
-      - name: Restore Cache
-        uses: actions/cache@v4
-        with:
-          path: ./kram-386-linux
-          key: ${{ github.run_id }}-cache-build-key-3
-
-      - name: Restore Cache
-        uses: actions/cache@v4
-        with:
-          path: ./kram-amd64-linux
-          key: ${{ github.run_id }}-cache-build-key-4
+          path: |
+            ./kram-386.exe
+            ./kram-amd64.exe
+            ./kram-386-linux
+            ./kram-amd64-linux
+          key: ${{ github.run_id }}-cache-build
 
       - name: Get Last Release
         id: get_last_release
         uses: joutvhu/get-release@v1.0.2
         with:
-          # Should get latest release?
           latest: true
           debug: true
         env:
@@ -143,17 +71,6 @@ jobs:
           "newtagversion=$newVersion" | Out-File -FilePath $env:GITHUB_OUTPUT
         shell: pwsh
 
-      # - name: Create Release
-      #   uses: phuonghuynh/action-ghrelease@v1.1.0
-      #   id: create_release
-      #   with:
-      #     draft: false
-      #     prerelease: false
-      #     name: Kram ${{ steps.increment_tag.outputs.newtagversion }}
-      #     tag_name: ${{ steps.increment_tag.outputs.newtagversion }}
-      #     body: Auto Release ${{ steps.increment_tag.outputs.newtagversion }}
-      #   env:
-      #     GITHUB_TOKEN: ${{ github.token }}
       - name: Create Release
         id: create_release
         uses: softprops/action-gh-release@v1
