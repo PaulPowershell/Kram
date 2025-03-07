@@ -47,7 +47,7 @@ jobs:
           path: |
             kram-386-windows
             kram-amd64-windows
-            kram-amd64-linux
+            kram-386-linux
             kram-amd64-linux
           key: ${{ github.run_id }}-cache-build
 
@@ -100,9 +100,9 @@ jobs:
           prerelease: false
           generate_release_notes: true
           files: |
-            ./kram-386-linux
-            ./kram-amd64-linux
-            ./kram-386-windows
-            ./kram-amd64-windows
+            kram-386-linux
+            kram-amd64-linux
+            kram-386-windows
+            kram-amd64-windows
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
