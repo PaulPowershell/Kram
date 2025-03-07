@@ -26,12 +26,12 @@ jobs:
 
       - name: Build Go
         run: |
-          GOOS=${{ matrix.os }} GOARCH=${{ matrix.arch }} go build -v -o kram-${{ matrix.arch }}-${{ matrix.os }}
+          GOOS=${{ matrix.os }} GOARCH=${{ matrix.arch }} go build -v -o ${{ github.event.repository.name }}-${{ matrix.arch }}-${{ matrix.os }}
 
       - name: Cache Build Artifacts
         uses: actions/cache@v4
         with:
-          path: ./kram-${{ matrix.arch }}-${{ matrix.os }}
+          path: ./${{ github.event.repository.name }}-${{ matrix.arch }}-${{ matrix.os }}
           key: ${{ github.run_id }}-cache-build
 
   create-release:
@@ -44,25 +44,25 @@ jobs:
       - name: Restore Cache
         uses: actions/cache@v4
         with:
-          path: ./kram-386-windows
+          path: ./${{ github.event.repository.name }}-386-windows
           key: ${{ github.run_id }}-cache-build
 
       - name: Restore Cache
         uses: actions/cache@v4
         with:
-          path: ./kram-amd64-windows
+          path: ./${{ github.event.repository.name }}-amd64-windows
           key: ${{ github.run_id }}-cache-build
 
       - name: Restore Cache
         uses: actions/cache@v4
         with:
-          path: ./kram-386-linux
+          path: ./${{ github.event.repository.name }}-386-linux
           key: ${{ github.run_id }}-cache-build
 
       - name: Restore Cache
         uses: actions/cache@v4
         with:
-          path: ./kram-amd64-linux
+          path: ./${{ github.event.repository.name }}-amd64-linux
           key: ${{ github.run_id }}-cache-build
 
       - name: Get Last Release
@@ -90,15 +90,15 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ steps.increment_tag.outputs.newtagversion }}
-          name: Kram ${{ steps.increment_tag.outputs.newtagversion }}
+          name: ${{ github.event.repository.name }} ${{ steps.increment_tag.outputs.newtagversion }}
           body: Auto Release ${{ steps.increment_tag.outputs.newtagversion }}
           draft: false
           prerelease: false
           generate_release_notes: true
           files: |
-            ./kram-386-linux
-            ./kram-amd64-linux
-            ./kram-386-windows
-            ./kram-amd64-windows
+            ./${{ github.event.repository.name }}-386-linux
+            ./${{ github.event.repository.name }}-amd64-linux
+            ./${{ github.event.repository.name }}-386-windows
+            ./${{ github.event.repository.name }}-amd64-windows
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
