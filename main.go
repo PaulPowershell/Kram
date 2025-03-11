@@ -35,6 +35,19 @@ func init() {
 	}
 }
 
+func printHelp() {
+	pterm.Println("Display namespaces or pods capacities and usages.")
+	pterm.Println("Usage:")
+	pterm.Println(" kram [namespace] (optional)")
+	pterm.Println("")
+	pterm.Println("Flags:")
+	pterm.Println("  [namespace],  namespace name")
+	pterm.Println("  -h,  help for kram")
+	pterm.Println("Examples:")
+	pterm.Println("  kram / Show all namespaces capacites and usages")
+	pterm.Println("  kram my-namespace / Show pods capacities and usages in my-namespace")
+}
+
 func main() {
 	// Create a multi printer instance
 	multi := pterm.DefaultMultiPrinter
@@ -45,10 +58,17 @@ func main() {
 	// Initialize an array to store errors
 	var errorsList []error
 
-	// Parse flags (arguments)
+	helpFlag := flag.Bool("h", false, "Show help message")
+
+	// Parse flags (namespaceFlag)
 	flag.Parse()
-	// Get the namespace from command-line argument, else from the config file
-	argument := flag.Arg(0)
+	// Get the namespace from command-line namespaceFlag, else from the config file
+	namespaceFlag := flag.Arg(0)
+
+	if *helpFlag {
+		printHelp()
+		os.Exit(0)
+	}
 
 	// Building the config using the specified kubeconfig
 	config, err := clientcmd.BuildConfigFromFlags("", kubeconfig)
@@ -71,8 +91,8 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Get all namespaces if argument is not specified
-	if argument == "" {
+	// Get all namespaces if namespaceFlag is not specified
+	if namespaceFlag == "" {
 		namespaces, err := clientset.CoreV1().Namespaces().List(context.TODO(), metav1.ListOptions{})
 		if err != nil {
 			spinner.Fail("Initialization error")
@@ -82,10 +102,10 @@ func main() {
 		multi.Stop()
 		listNamespaceMetrics(namespaces.Items, clientset, metricsClientset, &errorsList)
 	} else {
-		// If a namespace argument is specified, display request and limit values for each pod in the namespace.
+		// If a namespaceFlag is specified, display request and limit values for each pod in the namespace.
 		namespace := &corev1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
-				Name: argument,
+				Name: namespaceFlag,
 			},
 		}
 		spinner.Success("Initialization done")
