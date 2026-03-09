@@ -1,6 +1,6 @@
 # Kram - Kubernetes Resource Metrics Printer
 
-Kram is a command-line tool for retrieves resource metrics for Kubernetes namespaces and pods and prints them in a tabular format.
+Kram is a command-line tool that retrieves resource metrics for Kubernetes namespaces and pods and prints them in a tabular format.
 
 ## Last Build
 [![Go Build & Release](https://github.com/VegaCorporoptions/Kram/actions/workflows/go.yml/badge.svg)](https://github.com/VegaCorporoptions/Kram/actions/workflows/go.yml)
@@ -11,17 +11,18 @@ Before using this application, ensure you have the following prerequisites:
 
 - Go installed on your system. (to build)
 - `kubectl` configured with access to your Kubernetes cluster.
+- [metrics-server](https://github.com/kubernetes-sigs/metrics-server) deployed in your cluster.
 
 ## Installation
 
 1. Clone the repository to your local machine:
 
 ```bash
-git clone https://github.com/VegaCorporoptions/Kram
-cd your-repo
+git clone https://github.com/PaulPowershell/Kram
+cd Kram
 ```
 
-Build the Go application:
+2. Build the Go application:
 ```bash
 go build .
 ```
@@ -30,38 +31,82 @@ go build .
 You can download the executable for Kram directly from the latest release with its version. This allows you to use Kram without the need to build it yourself. Here are the steps to download the executable for your system:
 1. Visit the [Releases](https://github.com/VegaCorporoptions/Kram/releases/latest) page.
 
-## Usage
+## Usages
+### commands:
+```bash
+kram [namespace] [flags]
+
+Flags:
+-N, --node Display resource usage matrix by node
+-c, --cpu Show only CPU table (use with --node)
+-r, --ram Show only RAM table (use with --node)
+--kubeconfig string Absolute path to the kubeconfig file (default "~/.kube/config")
+-h, --help Help for kram
+```
+
+#### Example 1: List metrics for all namespaces
 To list metrics for all namespaces, run the application without any arguments:
 ```bash
 kram
 ```
+The application outputs (kram) the following metrics in a tabular format:
+| Namespace         | Pods | CPU Usage | CPU Request | CPU Limit | Mem Usage | Mem Request | Mem Limit |
+|-------------------|------|-----------|-------------|-----------|-----------|-------------|-----------|
+| example-namespace | 5    | 100 Mi    | 200 Mi      | 300 Mi    | 500 Mo    | 600 Mo      | 700 Mo    |
+| another-namespace | 3    | 50 Mi     | 100 Mi      | 150 Mi    | 250 Mo    | 300 Mo      | 350 Mo    |
+| ...               | ...  | ...       | ...         | ...       | ...       | ...         | ...       |
 
+#### Example 2: List metrics for a specific namespace
 To list metrics for a specific namespace, provide the namespace name as an argument:
 ```bash
 kram <namespace>
 ```
-Application will display the resource usage and limits for pods within the specified namespace.
-
-## Output
-The application outputs (kram) the following metrics in a tabular format:
-|       Namespace       |  Pods  | CPU Usage  | CPU Request | CPU Limit   | Mem Usage | Mem Request | Mem Limit   |
-|-----------------------|--------|------------|-------------|-------------|-----------|-------------|-------------|
-| example-namespace     |  5     | 100 Mi     | 200 Mi      | 300 Mi      | 500 Mo    | 600 Mo      | 700 Mo      |
-| another-namespace     |  3     | 50 Mi      | 100 Mi      | 150 Mi      | 250 Mo    | 300 Mo      | 350 Mo      |
-| ...                   | ...    | ...        | ...         | ...         | ...       | ...         | ...         |
-
-<br>
-The application outputs (kram networking) the following metrics in a tabular format:
-
 Metrics for Namespace: networking
-| Pods                                         | Container                     | CPU Usage | CPU Request | CPU Limit | Mem Usage | Mem Request | Mem Limit |
-|----------------------------------------------|-------------------------------|-----------|-------------|-----------|-----------|-------------|-----------|
-| ingress-nginx-controller-974dcfff4-7hcbv     | controller                    | 3 Mi      | 1000 Mi     | 1000 Mi   | 142 Mo    | 512 Mo      | 1024 Mo   |
-| ingress-nginx-controller-974dcfff4-mb5fv     | controller                    | 3 Mi      | 1000 Mi     | 1000 Mi   | 134 Mo    | 512 Mo      | 1024 Mo   |
-| ...                                          | ...                           | ...       | ...         | ...       | ...       | ...         | ...       |
+| Pods                                          | Container                     | CPU Usage | CPU Request | CPU Limit | Mem Usage | Mem Request | Mem Limit |
+|-----------------------------------------------|-------------------------------|-----------|-------------|-----------|-----------|-------------|-----------|
+| ingress-nginx-controller-xxxxxxxxxx-xxxxx     | controller                    | 2 m       | 100 m       | 100 m     | 62.09MiB  | 256MiB      | 512MiB    |
+| ingress-nginx-controller-xxxxxxxxxx-xxxxx     | controller                    | 3 m       | 100 m       | 100 m     | 62.71MiB  | 256MiB      | 512MiB    |
+| ingress-nginx-defaultbackend-xxxxxxxxxxxx-xxx | ingress-nginx-default-backend | 1 m       | 0 m         | 0 m       | 4.734MiB  | 0B          | 0B        |
+| Total                                         |                               | 6 m       | 200 m       | 200 m     | 129.5MiB  | 512MiB      | 1GiB      |
 
-## Demo
-![kram](kram.gif)
+#### Example 3: List metrics by namespaces on nodes
+To list metrics by namespaces on nodes:
+```bash
+kram --node
+```
+Memory Usage / Request / Limit
+| Namespace              | aks-computespot-xxxxxxxx-xxxxxxxxxx | aks-computespot-xxxxxxxx-xxxxxxxxxx | aks-sys-xxxxxxxx-xxxxxxxxxx |
+|------------------------|-------------------------------------|-------------------------------------|-----------------------------|
+| flux-system            | -                                   | -                                   | 679.3MiB/400MiB/6.016GiB    |
+| kube-system            | 302.1MiB/446MiB/7.482GiB            | 245.9MiB/446MiB/7.482GiB            | 518.3MiB/970MiB/13.26GiB    |
+| monitoring             | 256.4MiB/322MiB/1.064GiB            | 1.182GiB/1.549GiB/2.799GiB          | 172MiB/336MiB/1.123GiB      |
+| networking             | 4.734MiB/0B/0B                      | -                                   | 125.4MiB/512MiB/1GiB        |
+| opencost               | 108.6MiB/71MiB/272MiB               | -                                   | -                           |
+
+#### Example 4: List metrics for a specific namespace by nodes
+To list metrics for a specific namespace by nodes, provide the namespace name as an argument:
+```bash
+kram <namespace> --node
+```
+Memory Usage / Request / Limit
+| Namespace  | aks-computespot-xxxxxxxx-xxxxxxxxxx | aks-sys-xxxxxxxx-xxxxxxxxxx |
+|------------|-------------------------------------|-----------------------------|
+| networking | 4.734MiB/0B/0B                      | 123.3MiB/512MiB/1GiB        |
+
+CPU Usage / Request / Limit
+| Namespace  | aks-computespot-xxxxxxxx-xxxxxxxxxx | aks-sys-xxxxxxxx-xxxxxxxxxx |
+|------------|-------------------------------------|-----------------------------|
+| networking | 1m/0m/0m                            | 5m/200m/200m                |
+
+#### Example 5: List ram or metrics for a specific namespace by nodes
+To list ram (or cpu) metrics for a specific namespace by nodes, provide the namespace name as an argument:
+```bash
+kram <namespace> --node --ram
+```
+Memory Usage / Request / Limit
+| Namespace  | aks-computespot-xxxxxxxx-xxxxxxxxxx | aks-sys-xxxxxxxx-xxxxxxxxxx |
+|------------|-------------------------------------|-----------------------------|
+| networking | 4.734MiB/0B/0B                      | 123.3MiB/512MiB/1GiB        |
 
 ## License
 This project is licensed under the MIT License. See the LICENSE file for details.
