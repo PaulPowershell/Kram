@@ -68,6 +68,11 @@ func shortNodeName(name string) string {
 	return fmt.Sprintf("%s-%s", prefix, suffix)
 }
 
+// htmlOutputPath retourne le chemin complet du fichier HTML dans le répertoire temp de l'OS
+func htmlOutputPath(filename string) string {
+	return filepath.Join(os.TempDir(), filename)
+}
+
 // openBrowser ouvre le fichier HTML dans le navigateur par défaut selon l'OS
 func openBrowser(path string) {
 	var cmd *exec.Cmd
@@ -80,6 +85,11 @@ func openBrowser(path string) {
 		cmd = exec.Command("xdg-open", path)
 	}
 	cmd.Start()
+}
+
+type htmlSection struct {
+	Title string
+	Data  [][]string
 }
 
 // renderHTML génère un fichier HTML à partir de sections (titre + tableData)
@@ -173,11 +183,6 @@ func renderHTML(sections []htmlSection, filename string) {
 	openBrowser(filename)
 }
 
-type htmlSection struct {
-	Title string
-	Data  [][]string
-}
-
 func main() {
 	var nodeFlag bool
 	var cpuFlag bool
@@ -224,22 +229,19 @@ func main() {
 			spinner.Success("Initialization done")
 
 			if nodeFlag {
-				var namespacesToProcess []corev1.Namespace
-
 				if namespaceFlag != "" {
-					namespacesToProcess = []corev1.Namespace{
-						{ObjectMeta: metav1.ObjectMeta{Name: namespaceFlag}},
-					}
+					// namespace + -N : matrice pods x nodes
+					namespace := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: namespaceFlag}}
+					listPodNodeMetrics(*namespace, clientset, metricsClientset, cpuFlag, ramFlag, outputFlag, &errorsList)
 				} else {
+					// matrice namespaces x nodes
 					namespaces, err := clientset.CoreV1().Namespaces().List(context.TODO(), metav1.ListOptions{})
 					if err != nil {
 						pterm.Error.WithShowLineNumber(true).Println(err)
 						os.Exit(1)
 					}
-					namespacesToProcess = namespaces.Items
+					listNodeMetrics(namespaces.Items, clientset, metricsClientset, cpuFlag, ramFlag, outputFlag, &errorsList)
 				}
-
-				listNodeMetrics(namespacesToProcess, clientset, metricsClientset, cpuFlag, ramFlag, outputFlag, &errorsList)
 
 			} else if namespaceFlag == "" {
 				namespaces, err := clientset.CoreV1().Namespaces().List(context.TODO(), metav1.ListOptions{})
@@ -279,6 +281,170 @@ func main() {
 	}
 }
 
+// listPodNodeMetrics affiche une matrice pods x nodes pour un namespace donné.
+func listPodNodeMetrics(namespace corev1.Namespace, clientset *kubernetes.Clientset, metricsClientset *metricsv.Clientset, onlyCPU bool, onlyRAM bool, outputFormat string, errorsList *[]error) {
+	pods, err := clientset.CoreV1().Pods(namespace.Name).List(context.TODO(), metav1.ListOptions{})
+	if err != nil {
+		pterm.Error.WithShowLineNumber(true).Println(err)
+		os.Exit(1)
+	}
+
+	if len(pods.Items) == 0 {
+		pterm.Warning.Printf("No pods found in namespace: %s\n", namespace.Name)
+		return
+	}
+
+	bar, _ := pterm.DefaultProgressbar.
+		WithTotal(len(pods.Items)).
+		WithTitle("Running").
+		WithRemoveWhenDone().
+		Start()
+
+	type podStats struct {
+		nodeName                       string
+		memUsage, memRequest, memLimit int64
+		cpuUsage, cpuRequest, cpuLimit int64
+	}
+
+	nodeSet := make(map[string]struct{})
+	podStatsList := []podStats{}
+	podNames := []string{}
+
+	for _, pod := range pods.Items {
+		bar.Increment()
+
+		nodeName := pod.Spec.NodeName
+		nodeSet[nodeName] = struct{}{}
+
+		stats := podStats{nodeName: nodeName}
+
+		podMetrics, err := metricsClientset.MetricsV1beta1().PodMetricses(namespace.Name).Get(context.TODO(), pod.Name, metav1.GetOptions{})
+		if err != nil {
+			*errorsList = append(*errorsList, err)
+			continue
+		}
+
+		for _, containerMetrics := range podMetrics.Containers {
+			stats.memUsage += containerMetrics.Usage.Memory().Value()
+			stats.cpuUsage += containerMetrics.Usage.Cpu().MilliValue()
+
+			for _, containerSpec := range pod.Spec.Containers {
+				if containerSpec.Name == containerMetrics.Name {
+					stats.memRequest += containerSpec.Resources.Requests.Memory().Value()
+					stats.memLimit += containerSpec.Resources.Limits.Memory().Value()
+					stats.cpuRequest += containerSpec.Resources.Requests.Cpu().MilliValue()
+					stats.cpuLimit += containerSpec.Resources.Limits.Cpu().MilliValue()
+					break
+				}
+			}
+		}
+
+		podStatsList = append(podStatsList, stats)
+		podNames = append(podNames, pod.Name)
+	}
+
+	nodes := make([]string, 0, len(nodeSet))
+	for node := range nodeSet {
+		nodes = append(nodes, node)
+	}
+	sort.Strings(nodes)
+
+	type nodeTotals struct {
+		memUsage, memRequest, memLimit int64
+		cpuUsage, cpuRequest, cpuLimit int64
+	}
+	totals := make(map[string]*nodeTotals)
+	for _, node := range nodes {
+		totals[node] = &nodeTotals{}
+	}
+
+	memHeader := []string{"Pod"}
+	cpuHeader := []string{"Pod"}
+	for _, node := range nodes {
+		memHeader = append(memHeader, shortNodeName(node))
+		cpuHeader = append(cpuHeader, shortNodeName(node))
+	}
+
+	memTableData := [][]string{memHeader}
+	cpuTableData := [][]string{cpuHeader}
+
+	for i, stats := range podStatsList {
+		memRow := []string{podNames[i]}
+		cpuRow := []string{podNames[i]}
+
+		for _, node := range nodes {
+			if stats.nodeName == node {
+				memRow = append(memRow, fmt.Sprintf("%s/%s/%s",
+					formatBytes(stats.memUsage),
+					formatBytes(stats.memRequest),
+					formatBytes(stats.memLimit),
+				))
+				cpuRow = append(cpuRow, fmt.Sprintf("%dm/%dm/%dm",
+					stats.cpuUsage,
+					stats.cpuRequest,
+					stats.cpuLimit,
+				))
+				totals[node].memUsage += stats.memUsage
+				totals[node].memRequest += stats.memRequest
+				totals[node].memLimit += stats.memLimit
+				totals[node].cpuUsage += stats.cpuUsage
+				totals[node].cpuRequest += stats.cpuRequest
+				totals[node].cpuLimit += stats.cpuLimit
+			} else {
+				memRow = append(memRow, "-")
+				cpuRow = append(cpuRow, "-")
+			}
+		}
+		memTableData = append(memTableData, memRow)
+		cpuTableData = append(cpuTableData, cpuRow)
+	}
+
+	// Ligne Total
+	memTotalRow := []string{"Total"}
+	cpuTotalRow := []string{"Total"}
+	for _, node := range nodes {
+		t := totals[node]
+		memTotalRow = append(memTotalRow, fmt.Sprintf("%s/%s/%s",
+			formatBytes(t.memUsage),
+			formatBytes(t.memRequest),
+			formatBytes(t.memLimit),
+		))
+		cpuTotalRow = append(cpuTotalRow, fmt.Sprintf("%dm/%dm/%dm",
+			t.cpuUsage,
+			t.cpuRequest,
+			t.cpuLimit,
+		))
+	}
+	memTableData = append(memTableData, memTotalRow)
+	cpuTableData = append(cpuTableData, cpuTotalRow)
+
+	showMem := !onlyCPU
+	showCPU := !onlyRAM
+
+	if outputFormat == "html" {
+		var sections []htmlSection
+		if showMem {
+			sections = append(sections, htmlSection{Title: fmt.Sprintf("Memory Usage / Request / Limit — %s", namespace.Name), Data: memTableData})
+		}
+		if showCPU {
+			sections = append(sections, htmlSection{Title: fmt.Sprintf("CPU Usage / Request / Limit — %s", namespace.Name), Data: cpuTableData})
+		}
+		renderHTML(sections, htmlOutputPath(fmt.Sprintf("kram-%s-nodes.html", namespace.Name)))
+	} else {
+		if showMem {
+			pterm.Printf("Memory Usage / Request / Limit — %s\n", namespace.Name)
+			pterm.DefaultTable.WithHeaderRowSeparator("─").WithBoxed().WithHasHeader().WithAlternateRowStyle(alternateStyle).WithData(memTableData).Render()
+		}
+		if showCPU {
+			if showMem {
+				pterm.Printf("\n")
+			}
+			pterm.Printf("CPU Usage / Request / Limit — %s\n", namespace.Name)
+			pterm.DefaultTable.WithHeaderRowSeparator("─").WithBoxed().WithHasHeader().WithAlternateRowStyle(alternateStyle).WithData(cpuTableData).Render()
+		}
+	}
+}
+
 // listNodeMetrics retrieves and displays aggregated pod performance metrics by node for all namespaces.
 func listNodeMetrics(namespaces []corev1.Namespace, clientset *kubernetes.Clientset, metricsClientset *metricsv.Clientset, onlyCPU bool, onlyRAM bool, outputFormat string, errorsList *[]error) {
 	type resourceStats struct {
@@ -288,7 +454,6 @@ func listNodeMetrics(namespaces []corev1.Namespace, clientset *kubernetes.Client
 	nsNodeStats := make(map[string]map[string]*resourceStats)
 	nodeSet := make(map[string]struct{})
 
-	// Passe 1 — récupère tous les pods pour connaître le total
 	podsByNamespace := make(map[string][]corev1.Pod)
 	totalPods := 0
 	for _, namespace := range namespaces {
@@ -310,7 +475,6 @@ func listNodeMetrics(namespaces []corev1.Namespace, clientset *kubernetes.Client
 		WithRemoveWhenDone().
 		Start()
 
-	// Passe 2 — collecte des métriques
 	for namespaceName, pods := range podsByNamespace {
 		nsNodeStats[namespaceName] = make(map[string]*resourceStats)
 
@@ -360,7 +524,6 @@ func listNodeMetrics(namespaces []corev1.Namespace, clientset *kubernetes.Client
 	}
 	sort.Strings(nsNames)
 
-	// Construction des tableaux MEM et CPU
 	memHeader := []string{"Namespace"}
 	for _, node := range nodes {
 		memHeader = append(memHeader, shortNodeName(node))
@@ -414,7 +577,7 @@ func listNodeMetrics(namespaces []corev1.Namespace, clientset *kubernetes.Client
 		if showCPU {
 			sections = append(sections, htmlSection{Title: "CPU Usage / Request / Limit", Data: cpuTableData})
 		}
-		renderHTML(sections, "kram.html")
+		renderHTML(sections, htmlOutputPath("kram-nodes.html"))
 	} else {
 		if showMem {
 			pterm.Printf("Memory Usage / Request / Limit\n")
@@ -492,7 +655,7 @@ func listNamespaceMetrics(namespaces []corev1.Namespace, clientset *kubernetes.C
 	}
 
 	if outputFormat == "html" {
-		renderHTML([]htmlSection{{Title: "Namespaces Resource Metrics", Data: podTableData}}, "kram-namespaces.html")
+		renderHTML([]htmlSection{{Title: "Namespaces Resource Metrics", Data: podTableData}}, htmlOutputPath("kram-namespaces.html"))
 	} else {
 		pterm.DefaultTable.WithHeaderRowSeparator("─").WithBoxed().WithHasHeader().WithAlternateRowStyle(alternateStyle).WithData(podTableData).Render()
 	}
@@ -590,7 +753,7 @@ func printNamespaceMetrics(namespace corev1.Namespace, clientset *kubernetes.Cli
 	if outputFormat == "html" {
 		renderHTML([]htmlSection{
 			{Title: fmt.Sprintf("Metrics for Namespace: %s", namespace.Name), Data: podTableData},
-		}, fmt.Sprintf("kram-%s.html", namespace.Name))
+		}, htmlOutputPath(fmt.Sprintf("kram-%s.html", namespace.Name)))
 	} else {
 		pterm.Printf("Metrics for Namespace: %s\n", namespace.Name)
 		pterm.DefaultTable.WithHeaderRowSeparator("─").WithBoxed().WithHasHeader().WithAlternateRowStyle(alternateStyle).WithData(podTableData).Render()

@@ -34,14 +34,16 @@ You can download the executable for Kram directly from the latest release with i
 ## Usages
 ### commands:
 ```bash
-kram [namespace] [flags]
+Usage:
+  kram [namespace] [flags]
 
 Flags:
--N, --node Display resource usage matrix by node
--c, --cpu Show only CPU table (use with --node)
--r, --ram Show only RAM table (use with --node)
---kubeconfig string Absolute path to the kubeconfig file (default "~/.kube/config")
--h, --help Help for kram
+  -c, --cpu                 Show only CPU table (use with -N)
+  -h, --help                help for kram
+  --kubeconfig string   (optional) string Absolute path to the kubeconfig file (default "~/.kube/config")
+  -N, --node                Display resource usage matrix by node
+  -o, --output string       Output format: table or html (default "table")
+  -r, --ram                 Show only RAM table (use with -N)
 ```
 
 #### Example 1: List metrics for all namespaces
@@ -107,6 +109,14 @@ Memory Usage / Request / Limit
 | Namespace  | aks-computespot-xxxxxxxx-xxxxxxxxxx | aks-sys-xxxxxxxx-xxxxxxxxxx |
 |------------|-------------------------------------|-----------------------------|
 | networking | 4.734MiB/0B/0B                      | 123.3MiB/512MiB/1GiB        |
+
+#### Example 6: Export metrics to HTML
+Any command can be combined with `--output html` (or `-o html`) to generate an HTML report and automatically open it in the default browser.
+```bash
+# Node view → kram.html
+kram --node --output html
+```
+The HTML report uses a dark theme and renders the same tables in a responsive, browser-friendly format.
 
 ## License
 This project is licensed under the MIT License. See the LICENSE file for details.
