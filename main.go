@@ -4,8 +4,11 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
 	"sort"
+	"strings"
 
 	"github.com/docker/go-units"
 	"github.com/pterm/pterm"
@@ -44,10 +47,142 @@ func buildClients(kubeconfig string) (*kubernetes.Clientset, *metricsv.Clientset
 	return clientset, metricsClientset, nil
 }
 
+func formatBytes(b int64) string {
+	s := units.BytesSize(float64(b))
+	return strings.Replace(s, "iB", "B", 1)
+}
+
+func shortNodeName(name string) string {
+	parts := strings.Split(name, "-")
+	if len(parts) < 2 {
+		if len(name) <= 2 {
+			return name
+		}
+		return name[len(name)-2:]
+	}
+	prefix := parts[0] + "-" + parts[1]
+	if len(name) < 2 {
+		return name
+	}
+	suffix := name[len(name)-2:]
+	return fmt.Sprintf("%s-%s", prefix, suffix)
+}
+
+// openBrowser ouvre le fichier HTML dans le navigateur par défaut selon l'OS
+func openBrowser(path string) {
+	var cmd *exec.Cmd
+	switch runtime.GOOS {
+	case "windows":
+		cmd = exec.Command("cmd", "/c", "start", path)
+	case "darwin":
+		cmd = exec.Command("open", path)
+	default:
+		cmd = exec.Command("xdg-open", path)
+	}
+	cmd.Start()
+}
+
+// renderHTML génère un fichier HTML à partir de sections (titre + tableData)
+// et l'ouvre dans le navigateur
+func renderHTML(sections []htmlSection, filename string) {
+	var sb strings.Builder
+
+	sb.WriteString(`<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kram - Kubernetes Resource Metrics</title>
+  <style>
+    body {
+      font-family: monospace;
+      background: #1e1e1e;
+      color: #d4d4d4;
+      padding: 20px;
+    }
+    h2 {
+      color: #9cdcfe;
+      margin-top: 30px;
+    }
+    .table-wrapper {
+      overflow-x: auto;
+      margin-bottom: 30px;
+    }
+    table {
+      border-collapse: collapse;
+      white-space: nowrap;
+      min-width: 100%;
+    }
+    th {
+      background: #2d2d2d;
+      color: #9cdcfe;
+      padding: 8px 14px;
+      border: 1px solid #444;
+      text-align: left;
+    }
+    td {
+      padding: 6px 14px;
+      border: 1px solid #444;
+    }
+    tr:nth-child(even) td {
+      background: #2a2a2a;
+    }
+    tr:nth-child(odd) td {
+      background: #1e1e1e;
+    }
+    tr:last-child td {
+      background: #2d3a2d;
+      color: #b5cea8;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+  <h1>Kram - Kubernetes Resource Metrics</h1>
+`)
+
+	for _, section := range sections {
+		sb.WriteString(fmt.Sprintf("  <h2>%s</h2>\n  <div class=\"table-wrapper\">\n  <table>\n", section.Title))
+
+		for i, row := range section.Data {
+			if i == 0 {
+				sb.WriteString("    <thead><tr>")
+				for _, cell := range row {
+					sb.WriteString(fmt.Sprintf("<th>%s</th>", cell))
+				}
+				sb.WriteString("</tr></thead>\n    <tbody>\n")
+			} else {
+				sb.WriteString("    <tr>")
+				for _, cell := range row {
+					sb.WriteString(fmt.Sprintf("<td>%s</td>", cell))
+				}
+				sb.WriteString("</tr>\n")
+			}
+		}
+		sb.WriteString("    </tbody>\n  </table>\n  </div>\n")
+	}
+
+	sb.WriteString("</body>\n</html>")
+
+	if err := os.WriteFile(filename, []byte(sb.String()), 0644); err != nil {
+		pterm.Error.Println("Cannot write HTML file:", err)
+		os.Exit(1)
+	}
+
+	pterm.Success.Println("HTML report generated:", filename)
+	openBrowser(filename)
+}
+
+type htmlSection struct {
+	Title string
+	Data  [][]string
+}
+
 func main() {
 	var nodeFlag bool
 	var cpuFlag bool
 	var ramFlag bool
+	var outputFlag string
 
 	rootCmd := &cobra.Command{
 		Use:   "kram [namespace]",
@@ -55,9 +190,7 @@ func main() {
 		Long:  "Kram retrieves resource metrics for Kubernetes namespaces and pods and prints them in a tabular format.",
 		Args:  cobra.MaximumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
-			multi := pterm.DefaultMultiPrinter
-			spinner, _ := pterm.DefaultSpinner.WithWriter(multi.NewWriter()).Start("Initialization running")
-			multi.Start()
+			spinner, _ := pterm.DefaultSpinner.Start("Initialization running")
 
 			var errorsList []error
 
@@ -65,27 +198,30 @@ func main() {
 			if len(args) > 0 {
 				namespaceFlag = args[0]
 			}
+
 			if (cpuFlag || ramFlag) && !nodeFlag {
 				pterm.Warning.Println("Flags --cpu / --ram are only effective with -N")
+			}
+
+			if outputFlag != "table" && outputFlag != "html" {
+				pterm.Error.Println("Invalid --output value. Use 'table' or 'html'")
+				os.Exit(1)
 			}
 
 			clientset, metricsClientset, err := buildClients(kubeconfig)
 			if err != nil {
 				spinner.Fail("Initialization error")
-				multi.Stop()
 				pterm.Error.WithShowLineNumber(true).Println(err)
 				os.Exit(1)
 			}
 
 			if _, err := clientset.Discovery().ServerVersion(); err != nil {
 				spinner.Fail("Initialization error")
-				multi.Stop()
 				pterm.Error.WithShowLineNumber(true).Println("Cannot connect to Kubernetes cluster:", err)
 				os.Exit(1)
 			}
 
 			spinner.Success("Initialization done")
-			multi.Stop()
 
 			if nodeFlag {
 				var namespacesToProcess []corev1.Namespace
@@ -103,7 +239,7 @@ func main() {
 					namespacesToProcess = namespaces.Items
 				}
 
-				listNodeMetrics(namespacesToProcess, clientset, metricsClientset, cpuFlag, ramFlag, &errorsList)
+				listNodeMetrics(namespacesToProcess, clientset, metricsClientset, cpuFlag, ramFlag, outputFlag, &errorsList)
 
 			} else if namespaceFlag == "" {
 				namespaces, err := clientset.CoreV1().Namespaces().List(context.TODO(), metav1.ListOptions{})
@@ -111,11 +247,11 @@ func main() {
 					pterm.Error.WithShowLineNumber(true).Println(err)
 					os.Exit(1)
 				}
-				listNamespaceMetrics(namespaces.Items, clientset, metricsClientset, &errorsList)
+				listNamespaceMetrics(namespaces.Items, clientset, metricsClientset, outputFlag, &errorsList)
 
 			} else {
 				namespace := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: namespaceFlag}}
-				printNamespaceMetrics(*namespace, clientset, metricsClientset, &errorsList)
+				printNamespaceMetrics(*namespace, clientset, metricsClientset, outputFlag, &errorsList)
 			}
 
 			if len(errorsList) > 0 {
@@ -136,6 +272,7 @@ func main() {
 	rootCmd.Flags().BoolVarP(&nodeFlag, "node", "N", false, "Display resource usage matrix by node")
 	rootCmd.Flags().BoolVarP(&cpuFlag, "cpu", "c", false, "Show only CPU table (use with -N)")
 	rootCmd.Flags().BoolVarP(&ramFlag, "ram", "r", false, "Show only RAM table (use with -N)")
+	rootCmd.Flags().StringVarP(&outputFlag, "output", "o", "table", "Output format: table or html")
 
 	if err := rootCmd.Execute(); err != nil {
 		os.Exit(1)
@@ -143,9 +280,7 @@ func main() {
 }
 
 // listNodeMetrics retrieves and displays aggregated pod performance metrics by node for all namespaces.
-func listNodeMetrics(namespaces []corev1.Namespace, clientset *kubernetes.Clientset, metricsClientset *metricsv.Clientset, onlyCPU bool, onlyRAM bool, errorsList *[]error) {
-	bar, _ := pterm.DefaultProgressbar.WithTotal(len(namespaces)).WithTitle("Running").WithRemoveWhenDone().Start()
-
+func listNodeMetrics(namespaces []corev1.Namespace, clientset *kubernetes.Clientset, metricsClientset *metricsv.Clientset, onlyCPU bool, onlyRAM bool, outputFormat string, errorsList *[]error) {
 	type resourceStats struct {
 		memUsage, memRequest, memLimit int64
 		cpuUsage, cpuRequest, cpuLimit int64
@@ -153,9 +288,10 @@ func listNodeMetrics(namespaces []corev1.Namespace, clientset *kubernetes.Client
 	nsNodeStats := make(map[string]map[string]*resourceStats)
 	nodeSet := make(map[string]struct{})
 
+	// Passe 1 — récupère tous les pods pour connaître le total
+	podsByNamespace := make(map[string][]corev1.Pod)
+	totalPods := 0
 	for _, namespace := range namespaces {
-		bar.Increment()
-
 		pods, err := clientset.CoreV1().Pods(namespace.Name).List(context.TODO(), metav1.ListOptions{})
 		if err != nil {
 			*errorsList = append(*errorsList, err)
@@ -164,19 +300,32 @@ func listNodeMetrics(namespaces []corev1.Namespace, clientset *kubernetes.Client
 		if len(pods.Items) == 0 {
 			continue
 		}
+		podsByNamespace[namespace.Name] = pods.Items
+		totalPods += len(pods.Items)
+	}
 
-		nsNodeStats[namespace.Name] = make(map[string]*resourceStats)
+	bar, _ := pterm.DefaultProgressbar.
+		WithTotal(totalPods).
+		WithTitle("Running").
+		WithRemoveWhenDone().
+		Start()
 
-		for _, pod := range pods.Items {
+	// Passe 2 — collecte des métriques
+	for namespaceName, pods := range podsByNamespace {
+		nsNodeStats[namespaceName] = make(map[string]*resourceStats)
+
+		for _, pod := range pods {
+			bar.Increment()
+
 			nodeName := pod.Spec.NodeName
 			nodeSet[nodeName] = struct{}{}
 
-			if _, ok := nsNodeStats[namespace.Name][nodeName]; !ok {
-				nsNodeStats[namespace.Name][nodeName] = &resourceStats{}
+			if _, ok := nsNodeStats[namespaceName][nodeName]; !ok {
+				nsNodeStats[namespaceName][nodeName] = &resourceStats{}
 			}
-			stats := nsNodeStats[namespace.Name][nodeName]
+			stats := nsNodeStats[namespaceName][nodeName]
 
-			podMetrics, err := metricsClientset.MetricsV1beta1().PodMetricses(namespace.Name).Get(context.TODO(), pod.Name, metav1.GetOptions{})
+			podMetrics, err := metricsClientset.MetricsV1beta1().PodMetricses(namespaceName).Get(context.TODO(), pod.Name, metav1.GetOptions{})
 			if err != nil {
 				*errorsList = append(*errorsList, err)
 				continue
@@ -211,16 +360,20 @@ func listNodeMetrics(namespaces []corev1.Namespace, clientset *kubernetes.Client
 	}
 	sort.Strings(nsNames)
 
-	memHeader := append([]string{"Namespace"}, nodes...)
+	// Construction des tableaux MEM et CPU
+	memHeader := []string{"Namespace"}
+	for _, node := range nodes {
+		memHeader = append(memHeader, shortNodeName(node))
+	}
 	memTableData := [][]string{memHeader}
 	for _, ns := range nsNames {
 		row := []string{ns}
 		for _, node := range nodes {
 			if stats, ok := nsNodeStats[ns][node]; ok {
 				row = append(row, fmt.Sprintf("%s/%s/%s",
-					units.BytesSize(float64(stats.memUsage)),
-					units.BytesSize(float64(stats.memRequest)),
-					units.BytesSize(float64(stats.memLimit)),
+					formatBytes(stats.memUsage),
+					formatBytes(stats.memRequest),
+					formatBytes(stats.memLimit),
 				))
 			} else {
 				row = append(row, "-")
@@ -229,7 +382,10 @@ func listNodeMetrics(namespaces []corev1.Namespace, clientset *kubernetes.Client
 		memTableData = append(memTableData, row)
 	}
 
-	cpuHeader := append([]string{"Namespace"}, nodes...)
+	cpuHeader := []string{"Namespace"}
+	for _, node := range nodes {
+		cpuHeader = append(cpuHeader, shortNodeName(node))
+	}
 	cpuTableData := [][]string{cpuHeader}
 	for _, ns := range nsNames {
 		row := []string{ns}
@@ -250,22 +406,37 @@ func listNodeMetrics(namespaces []corev1.Namespace, clientset *kubernetes.Client
 	showMem := !onlyCPU
 	showCPU := !onlyRAM
 
-	if showMem {
-		pterm.Printf("Memory Usage / Request / Limit\n")
-		pterm.DefaultTable.WithHeaderRowSeparator("─").WithBoxed().WithHasHeader().WithAlternateRowStyle(alternateStyle).WithData(memTableData).Render()
-	}
-	if showCPU {
+	if outputFormat == "html" {
+		var sections []htmlSection
 		if showMem {
-			pterm.Printf("\n")
+			sections = append(sections, htmlSection{Title: "Memory Usage / Request / Limit", Data: memTableData})
 		}
-		pterm.Printf("CPU Usage / Request / Limit\n")
-		pterm.DefaultTable.WithHeaderRowSeparator("─").WithBoxed().WithHasHeader().WithAlternateRowStyle(alternateStyle).WithData(cpuTableData).Render()
+		if showCPU {
+			sections = append(sections, htmlSection{Title: "CPU Usage / Request / Limit", Data: cpuTableData})
+		}
+		renderHTML(sections, "kram.html")
+	} else {
+		if showMem {
+			pterm.Printf("Memory Usage / Request / Limit\n")
+			pterm.DefaultTable.WithHeaderRowSeparator("─").WithBoxed().WithHasHeader().WithAlternateRowStyle(alternateStyle).WithData(memTableData).Render()
+		}
+		if showCPU {
+			if showMem {
+				pterm.Printf("\n")
+			}
+			pterm.Printf("CPU Usage / Request / Limit\n")
+			pterm.DefaultTable.WithHeaderRowSeparator("─").WithBoxed().WithHasHeader().WithAlternateRowStyle(alternateStyle).WithData(cpuTableData).Render()
+		}
 	}
 }
 
 // listNamespaceMetrics retrieves and displays aggregated pod performance metrics for all namespaces.
-func listNamespaceMetrics(namespaces []corev1.Namespace, clientset *kubernetes.Clientset, metricsClientset *metricsv.Clientset, errorsList *[]error) {
-	bar, _ := pterm.DefaultProgressbar.WithTotal(len(namespaces)).WithTitle("Running").WithRemoveWhenDone().Start()
+func listNamespaceMetrics(namespaces []corev1.Namespace, clientset *kubernetes.Clientset, metricsClientset *metricsv.Clientset, outputFormat string, errorsList *[]error) {
+	bar, _ := pterm.DefaultProgressbar.
+		WithTotal(len(namespaces)).
+		WithTitle("Running").
+		WithRemoveWhenDone().
+		Start()
 
 	var podTableData [][]string
 	podTableData = append(podTableData, []string{"Namespace", "Pods", "CPU Usage", "CPU Request", "CPU Limit", "Mem Usage", "Mem Request", "Mem Limit"})
@@ -283,7 +454,6 @@ func listNamespaceMetrics(namespaces []corev1.Namespace, clientset *kubernetes.C
 			var totalRAMUsageMB, totalRAMRequestMB, totalRAMLimitMB int64
 
 			for _, pod := range pods.Items {
-				// 👇 MODIF 1 — appel API remonté au niveau pod, hors de la boucle container
 				podMetrics, err := metricsClientset.MetricsV1beta1().PodMetricses(namespace.Name).Get(context.TODO(), pod.Name, metav1.GetOptions{})
 				if err != nil {
 					*errorsList = append(*errorsList, err)
@@ -313,25 +483,39 @@ func listNamespaceMetrics(namespaces []corev1.Namespace, clientset *kubernetes.C
 				pterm.Sprintf("%d m", totalCPUMilliCPU),
 				pterm.Sprintf("%d m", totalCPURequestMilliCPU),
 				pterm.Sprintf("%d m", totalCPULimitMilliCPU),
-				units.BytesSize(float64(totalRAMUsageMB)),
-				units.BytesSize(float64(totalRAMRequestMB)),
-				units.BytesSize(float64(totalRAMLimitMB)),
+				formatBytes(totalRAMUsageMB),
+				formatBytes(totalRAMRequestMB),
+				formatBytes(totalRAMLimitMB),
 			}
 			podTableData = append(podTableData, row)
 		}
 	}
 
-	pterm.DefaultTable.WithHeaderRowSeparator("─").WithBoxed().WithHasHeader().WithAlternateRowStyle(alternateStyle).WithData(podTableData).Render()
+	if outputFormat == "html" {
+		renderHTML([]htmlSection{{Title: "Namespaces Resource Metrics", Data: podTableData}}, "kram-namespaces.html")
+	} else {
+		pterm.DefaultTable.WithHeaderRowSeparator("─").WithBoxed().WithHasHeader().WithAlternateRowStyle(alternateStyle).WithData(podTableData).Render()
+	}
 }
 
 // printNamespaceMetrics retrieves and displays performance metrics for pods in a specified namespace.
-func printNamespaceMetrics(namespace corev1.Namespace, clientset *kubernetes.Clientset, metricsClientset *metricsv.Clientset, errorsList *[]error) {
+func printNamespaceMetrics(namespace corev1.Namespace, clientset *kubernetes.Clientset, metricsClientset *metricsv.Clientset, outputFormat string, errorsList *[]error) {
 	pods, err := clientset.CoreV1().Pods(namespace.Name).List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
-		*errorsList = append(*errorsList, err)
+		pterm.Error.WithShowLineNumber(true).Println(err)
+		os.Exit(1)
 	}
 
-	bar, _ := pterm.DefaultProgressbar.WithTotal(len(pods.Items)).WithTitle("Running").WithRemoveWhenDone().Start()
+	if len(pods.Items) == 0 {
+		pterm.Warning.Printf("No pods found in namespace: %s\n", namespace.Name)
+		return
+	}
+
+	bar, _ := pterm.DefaultProgressbar.
+		WithTotal(len(pods.Items)).
+		WithTitle("Running").
+		WithRemoveWhenDone().
+		Start()
 
 	var podTableData [][]string
 	var totalCPUUsage, totalCPURequest, totalCPULimit int64
@@ -366,23 +550,22 @@ func printNamespaceMetrics(namespace corev1.Namespace, clientset *kubernetes.Cli
 			requests := containerSpec.Resources.Requests
 			limits := containerSpec.Resources.Limits
 
-			containerName := containerMetrics.Name
 			cpuUsage := usage.Cpu().MilliValue()
-			cpuRequest := requests.Cpu().MilliValue() // 👇 MODIF 3 — := direct
+			cpuRequest := requests.Cpu().MilliValue()
 			cpuLimit := limits.Cpu().MilliValue()
 			memoryUsage := usage.Memory().Value()
-			memoryRequest := requests.Memory().Value() // 👇 MODIF 3 — := direct
+			memoryRequest := requests.Memory().Value()
 			memoryLimit := limits.Memory().Value()
 
 			podTableData = append(podTableData, []string{
 				pod.Name,
-				containerName,
+				containerMetrics.Name,
 				pterm.Sprintf("%d m", cpuUsage),
 				pterm.Sprintf("%d m", cpuRequest),
 				pterm.Sprintf("%d m", cpuLimit),
-				units.BytesSize(float64(memoryUsage)),
-				units.BytesSize(float64(memoryRequest)),
-				units.BytesSize(float64(memoryLimit)),
+				formatBytes(memoryUsage),
+				formatBytes(memoryRequest),
+				formatBytes(memoryLimit),
 			})
 
 			totalCPUUsage += cpuUsage
@@ -399,11 +582,17 @@ func printNamespaceMetrics(namespace corev1.Namespace, clientset *kubernetes.Cli
 		pterm.Sprintf("%d m", totalCPUUsage),
 		pterm.Sprintf("%d m", totalCPURequest),
 		pterm.Sprintf("%d m", totalCPULimit),
-		units.BytesSize(float64(totalMemoryUsage)),
-		units.BytesSize(float64(totalMemoryRequest)),
-		units.BytesSize(float64(totalMemoryLimit)),
+		formatBytes(totalMemoryUsage),
+		formatBytes(totalMemoryRequest),
+		formatBytes(totalMemoryLimit),
 	})
 
-	pterm.Printf("Metrics for Namespace: %s\n", namespace.Name)
-	pterm.DefaultTable.WithHeaderRowSeparator("─").WithBoxed().WithHasHeader().WithAlternateRowStyle(alternateStyle).WithData(podTableData).Render()
+	if outputFormat == "html" {
+		renderHTML([]htmlSection{
+			{Title: fmt.Sprintf("Metrics for Namespace: %s", namespace.Name), Data: podTableData},
+		}, fmt.Sprintf("kram-%s.html", namespace.Name))
+	} else {
+		pterm.Printf("Metrics for Namespace: %s\n", namespace.Name)
+		pterm.DefaultTable.WithHeaderRowSeparator("─").WithBoxed().WithHasHeader().WithAlternateRowStyle(alternateStyle).WithData(podTableData).Render()
+	}
 }
