@@ -566,6 +566,34 @@ func listNodeMetrics(namespaces []corev1.Namespace, clientset *kubernetes.Client
 		cpuTableData = append(cpuTableData, row)
 	}
 
+	// Totaux par node
+	memTotalRow := []string{"Total"}
+	cpuTotalRow := []string{"Total"}
+	for _, node := range nodes {
+		var memUsage, memRequest, memLimit int64
+		var cpuUsage, cpuRequest, cpuLimit int64
+		for _, ns := range nsNames {
+			if stats, ok := nsNodeStats[ns][node]; ok {
+				memUsage += stats.memUsage
+				memRequest += stats.memRequest
+				memLimit += stats.memLimit
+				cpuUsage += stats.cpuUsage
+				cpuRequest += stats.cpuRequest
+				cpuLimit += stats.cpuLimit
+			}
+		}
+		memTotalRow = append(memTotalRow, fmt.Sprintf("%s/%s/%s",
+			formatBytes(memUsage),
+			formatBytes(memRequest),
+			formatBytes(memLimit),
+		))
+		cpuTotalRow = append(cpuTotalRow, fmt.Sprintf("%dm/%dm/%dm",
+			cpuUsage, cpuRequest, cpuLimit,
+		))
+	}
+	memTableData = append(memTableData, memTotalRow)
+	cpuTableData = append(cpuTableData, cpuTotalRow)
+
 	showMem := !onlyCPU
 	showCPU := !onlyRAM
 
