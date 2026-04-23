@@ -335,6 +335,9 @@ func listNamespaceMetrics(namespaces []corev1.Namespace, clientset *kubernetes.C
 	}
 	nsRawData := make(map[string]*nsRawStats)
 	var nsOrder []string
+	var totalPods int
+	var totalCPUUsage, totalCPURequest, totalCPULimit int64
+	var totalMemUsage, totalMemRequest, totalMemLimit int64
 
 	for _, namespace := range namespaces {
 		bar.Increment()
@@ -345,8 +348,9 @@ func listNamespaceMetrics(namespaces []corev1.Namespace, clientset *kubernetes.C
 		}
 
 		if len(pods.Items) != 0 {
-			var totalCPU, totalCPUReq, totalCPULim int64
-			var totalMem, totalMemReq, totalMemLim int64
+			var nsCPUUsage, nsCPURequest, nsCPULimit int64
+			var nsMemUsage, nsMemRequest, nsMemLimit int64
+			totalPods += len(pods.Items)
 
 			for _, pod := range pods.Items {
 				podMetrics, err := metricsClientset.MetricsV1beta1().PodMetricses(namespace.Name).Get(context.TODO(), pod.Name, metav1.GetOptions{})
@@ -357,12 +361,12 @@ func listNamespaceMetrics(namespaces []corev1.Namespace, clientset *kubernetes.C
 				for _, container := range pod.Spec.Containers {
 					for _, containerMetrics := range podMetrics.Containers {
 						if containerMetrics.Name == container.Name {
-							totalCPU += containerMetrics.Usage.Cpu().MilliValue()
-							totalCPUReq += container.Resources.Requests.Cpu().MilliValue()
-							totalCPULim += container.Resources.Limits.Cpu().MilliValue()
-							totalMem += containerMetrics.Usage.Memory().Value()
-							totalMemReq += container.Resources.Requests.Memory().Value()
-							totalMemLim += container.Resources.Limits.Memory().Value()
+							nsCPUUsage += containerMetrics.Usage.Cpu().MilliValue()
+							nsCPURequest += container.Resources.Requests.Cpu().MilliValue()
+							nsCPULimit += container.Resources.Limits.Cpu().MilliValue()
+							nsMemUsage += containerMetrics.Usage.Memory().Value()
+							nsMemRequest += container.Resources.Requests.Memory().Value()
+							nsMemLimit += container.Resources.Limits.Memory().Value()
 						}
 					}
 				}
@@ -371,21 +375,38 @@ func listNamespaceMetrics(namespaces []corev1.Namespace, clientset *kubernetes.C
 			podTableData = append(podTableData, []string{
 				namespace.Name,
 				pterm.Sprint(len(pods.Items)),
-				pterm.Sprintf("%d m", totalCPU),
-				pterm.Sprintf("%d m", totalCPUReq),
-				pterm.Sprintf("%d m", totalCPULim),
-				fmt.Sprintf("%.1f MiB", toMiB(totalMem)),
-				fmt.Sprintf("%.1f MiB", toMiB(totalMemReq)),
-				fmt.Sprintf("%.1f MiB", toMiB(totalMemLim)),
+				pterm.Sprintf("%d m", nsCPUUsage),
+				pterm.Sprintf("%d m", nsCPURequest),
+				pterm.Sprintf("%d m", nsCPULimit),
+				fmt.Sprintf("%.1f MiB", toMiB(nsMemUsage)),
+				fmt.Sprintf("%.1f MiB", toMiB(nsMemRequest)),
+				fmt.Sprintf("%.1f MiB", toMiB(nsMemLimit)),
 			})
 
+			totalCPUUsage += nsCPUUsage
+			totalCPURequest += nsCPURequest
+			totalCPULimit += nsCPULimit
+			totalMemUsage += nsMemUsage
+			totalMemRequest += nsMemRequest
+			totalMemLimit += nsMemLimit
+
 			nsRawData[namespace.Name] = &nsRawStats{
-				cpuUsage: totalCPU, cpuRequest: totalCPUReq, cpuLimit: totalCPULim,
-				memUsage: totalMem, memRequest: totalMemReq, memLimit: totalMemLim,
+				cpuUsage: nsCPUUsage, cpuRequest: nsCPURequest, cpuLimit: nsCPULimit,
+				memUsage: nsMemUsage, memRequest: nsMemRequest, memLimit: nsMemLimit,
 			}
 			nsOrder = append(nsOrder, namespace.Name)
 		}
 	}
+
+	podTableData = append(podTableData, []string{
+		"Total", pterm.Sprint(totalPods),
+		pterm.Sprintf("%d m", totalCPUUsage),
+		pterm.Sprintf("%d m", totalCPURequest),
+		pterm.Sprintf("%d m", totalCPULimit),
+		fmt.Sprintf("%.1f MiB", toMiB(totalMemUsage)),
+		fmt.Sprintf("%.1f MiB", toMiB(totalMemRequest)),
+		fmt.Sprintf("%.1f MiB", toMiB(totalMemLimit)),
+	})
 
 	if outputFormat == "html" {
 		xLabels := make([]string, len(nsOrder))
@@ -550,33 +571,33 @@ func printNamespaceMetrics(namespace corev1.Namespace, clientset *kubernetes.Cli
 
 	if outputFormat == "html" {
 		xLabels := make([]string, len(podBars))
-		cpuUsageV := make([]float64, len(podBars))
-		cpuReqV := make([]float64, len(podBars))
-		cpuLimV := make([]float64, len(podBars))
-		memUsageV := make([]float64, len(podBars))
-		memReqV := make([]float64, len(podBars))
-		memLimV := make([]float64, len(podBars))
+		cpuUsageVals := make([]float64, len(podBars))
+		cpuReqVals := make([]float64, len(podBars))
+		cpuLimVals := make([]float64, len(podBars))
+		memUsageVals := make([]float64, len(podBars))
+		memReqVals := make([]float64, len(podBars))
+		memLimVals := make([]float64, len(podBars))
 
 		for i, p := range podBars {
 			xLabels[i] = p.name
-			cpuUsageV[i] = float64(p.cpuUsage)
-			cpuReqV[i] = float64(p.cpuRequest)
-			cpuLimV[i] = float64(p.cpuLimit)
-			memUsageV[i] = toMiB(p.memUsage)
-			memReqV[i] = toMiB(p.memRequest)
-			memLimV[i] = toMiB(p.memLimit)
+			cpuUsageVals[i] = float64(p.cpuUsage)
+			cpuReqVals[i] = float64(p.cpuRequest)
+			cpuLimVals[i] = float64(p.cpuLimit)
+			memUsageVals[i] = toMiB(p.memUsage)
+			memReqVals[i] = toMiB(p.memRequest)
+			memLimVals[i] = toMiB(p.memLimit)
 		}
 
 		cpuBarChart := newBarChart([]barChartSeries{
-			{name: "Usage", values: cpuUsageV},
-			{name: "Request", values: cpuReqV},
-			{name: "Limit", values: cpuLimV},
+			{name: "Usage", values: cpuUsageVals},
+			{name: "Request", values: cpuReqVals},
+			{name: "Limit", values: cpuLimVals},
 		}, xLabels, fmt.Sprintf("CPU — Usage / Request / Limit — %s", namespace.Name), "millicores")
 
 		memBarChart := newBarChart([]barChartSeries{
-			{name: "Usage", values: memUsageV},
-			{name: "Request", values: memReqV},
-			{name: "Limit", values: memLimV},
+			{name: "Usage", values: memUsageVals},
+			{name: "Request", values: memReqVals},
+			{name: "Limit", values: memLimVals},
 		}, xLabels, fmt.Sprintf("Memory — Usage / Request / Limit — %s", namespace.Name), "MiB")
 
 		chartHead, chartBody := barBodySnippet(cpuBarChart, memBarChart)
