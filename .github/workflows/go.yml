@@ -13,8 +13,8 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        os: [windows, linux]
-        arch: [386, amd64]
+        os: [ windows, linux ]
+        arch: [ 386, amd64 ]
     steps:
       - uses: actions/checkout@v3
 
@@ -86,10 +86,11 @@ jobs:
 
       - name: Create Release
         id: create_release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v3.0.0
         with:
           tag_name: ${{ steps.increment_tag.outputs.newtagversion }}
-          name: ${{ github.event.repository.name }} ${{ steps.increment_tag.outputs.newtagversion }}
+          name: ${{ github.event.repository.name }} ${{
+            steps.increment_tag.outputs.newtagversion }}
           body: Auto Release ${{ steps.increment_tag.outputs.newtagversion }}
           draft: false
           prerelease: false
