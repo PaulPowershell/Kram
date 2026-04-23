@@ -54,9 +54,10 @@ kram
 The application outputs (kram) the following metrics in a tabular format:
 | Namespace         | Pods | CPU Usage | CPU Request | CPU Limit | Mem Usage | Mem Request | Mem Limit |
 |-------------------|------|-----------|-------------|-----------|-----------|-------------|-----------|
-| example-namespace | 5    | 100 Mi    | 200 Mi      | 300 Mi    | 500 Mo    | 600 Mo      | 700 Mo    |
-| another-namespace | 3    | 50 Mi     | 100 Mi      | 150 Mi    | 250 Mo    | 300 Mo      | 350 Mo    |
-| ...               | ...  | ...       | ...         | ...       | ...       | ...         | ...       |
+| example-namespace | 5    | 100 m     | 200 m       | 300 m     | 500 MiB   | 600 MiB     | 700 MiB   |
+| another-namespace | 3    | 50 m      | 100 m       | 150 m     | 250 MiB   | 300 MiB     | 350 MiB   |
+| Total             | 8    | 150 m     | 300 m       | 350 m     | 750 MiB   | 900 MiB     | 1.05 GiB  |
+
 
 #### Example 2: List metrics for a specific namespace
 To list metrics for a specific namespace, provide the namespace name as an argument:
@@ -77,13 +78,13 @@ To list metrics by namespaces on nodes:
 kram --node
 ```
 Memory Usage / Request / Limit
-| Namespace              | aks-computespot-xxxxxxxx-xxxxxxxxxx | aks-computespot-xxxxxxxx-xxxxxxxxxx | aks-sys-xxxxxxxx-xxxxxxxxxx |
-|------------------------|-------------------------------------|-------------------------------------|-----------------------------|
-| flux-system            | -                                   | -                                   | 679.3MiB/400MiB/6.016GiB    |
-| kube-system            | 302.1MiB/446MiB/7.482GiB            | 245.9MiB/446MiB/7.482GiB            | 518.3MiB/970MiB/13.26GiB    |
-| monitoring             | 256.4MiB/322MiB/1.064GiB            | 1.182GiB/1.549GiB/2.799GiB          | 172MiB/336MiB/1.123GiB      |
-| networking             | 4.734MiB/0B/0B                      | -                                   | 125.4MiB/512MiB/1GiB        |
-| opencost               | 108.6MiB/71MiB/272MiB               | -                                   | -                           |
+| Namespace   | aks-computespot-xxxxxxxx-xxxxxxxxxx | aks-computespot-xxxxxxxx-xxxxxxxxxx | aks-sys-xxxxxxxx-xxxxxxxxxx |
+|-------------|-------------------------------------|-------------------------------------|-----------------------------|
+| flux-system | -                                   | -                                   | 679.3MiB/400MiB/6.016GiB    |
+| kube-system | 302.1MiB/446MiB/7.482GiB            | 245.9MiB/446MiB/7.482GiB            | 518.3MiB/970MiB/13.26GiB    |
+| monitoring  | 256.4MiB/322MiB/1.064GiB            | 1.182GiB/1.549GiB/2.799GiB          | 172MiB/336MiB/1.123GiB      |
+| networking  | 4.734MiB/0B/0B                      | -                                   | 125.4MiB/512MiB/1GiB        |
+| opencost    | 108.6MiB/71MiB/272MiB               | -                                   | -                           |
 
 #### Example 4: List metrics for a specific namespace by nodes
 To list metrics for a specific namespace by nodes, provide the namespace name as an argument:
