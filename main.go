@@ -5,16 +5,12 @@ import (
 	"fmt"
 	"math"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"runtime"
 	"sort"
 	"strings"
+	"sync"
 
 	"github.com/docker/go-units"
-	"github.com/go-echarts/go-echarts/v2/charts"
-	"github.com/go-echarts/go-echarts/v2/components"
-	"github.com/go-echarts/go-echarts/v2/opts"
 	"github.com/pterm/pterm"
 	"github.com/spf13/cobra"
 	corev1 "k8s.io/api/core/v1"
@@ -23,6 +19,7 @@ import (
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/util/homedir"
+	metricsv1beta1 "k8s.io/metrics/pkg/apis/metrics/v1beta1"
 	metricsv "k8s.io/metrics/pkg/client/clientset/versioned"
 )
 
@@ -38,26 +35,7 @@ const (
 var (
 	kubeconfig     string
 	alternateStyle = pterm.NewStyle(colorgrid)
-	barColors      = []string{
-		"#1a56a0", "#e05c1a", "#1a9e4a", "#c0392b",
-		"#8e44ad", "#d4ac0d", "#16a085", "#2c3e50",
-		"#e91e63", "#00bcd4",
-	}
 )
-
-// ============================================================
-// TYPES
-// ============================================================
-
-type barChartSeries struct {
-	name   string
-	values []float64
-}
-
-type htmlSection struct {
-	Title string
-	Data  [][]string
-}
 
 // ============================================================
 // UTILS
@@ -94,21 +72,51 @@ func shortNodeName(name string) string {
 	return fmt.Sprintf("%s-%s", prefix, suffix)
 }
 
-func htmlOutputPath(filename string) string {
-	return filepath.Join(os.TempDir(), filename)
+var stderrMu sync.Mutex
+
+// suppressKubernetesLogs temporarily redirects stderr to suppress klog output during API calls.
+// Uses a mutex to prevent concurrent goroutines from corrupting the global os.Stderr.
+func suppressKubernetesLogs(fn func() error) (result error) {
+	stderrMu.Lock()
+	defer stderrMu.Unlock()
+
+	devNull, err := os.Open(os.DevNull)
+	if err != nil {
+		return fn() // fallback: run without suppression
+	}
+	defer devNull.Close()
+
+	oldStderr := os.Stderr
+	os.Stderr = devNull
+	defer func() { os.Stderr = oldStderr }()
+	return fn()
 }
 
-func openBrowser(path string) {
-	var cmd *exec.Cmd
-	switch runtime.GOOS {
-	case "windows":
-		cmd = exec.Command("cmd", "/c", "start", path)
-	case "darwin":
-		cmd = exec.Command("open", path)
-	default:
-		cmd = exec.Command("xdg-open", path)
+// getNamespacePodMetricsMap fetches all pod metrics for a namespace with a single API call
+// and returns them as a map for O(1) lookup instead of O(n) per-pod .Get() calls
+func getNamespacePodMetricsMap(ctx context.Context, metricsClientset *metricsv.Clientset, namespace string, errorsList *[]error, mu *sync.Mutex) map[string]*metricsv1beta1.PodMetrics {
+	result := make(map[string]*metricsv1beta1.PodMetrics)
+
+	var podMetricsList *metricsv1beta1.PodMetricsList
+	err := suppressKubernetesLogs(func() error {
+		var e error
+		podMetricsList, e = metricsClientset.MetricsV1beta1().PodMetricses(namespace).List(ctx, metav1.ListOptions{})
+		return e
+	})
+
+	if err != nil {
+		mu.Lock()
+		*errorsList = append(*errorsList, err)
+		mu.Unlock()
+		return result
 	}
-	cmd.Start()
+
+	for i := range podMetricsList.Items {
+		pod := &podMetricsList.Items[i]
+		result[pod.Name] = pod
+	}
+
+	return result
 }
 
 // ============================================================
@@ -129,190 +137,6 @@ func buildClients(kubeconfig string) (*kubernetes.Clientset, *metricsv.Clientset
 		return nil, nil, err
 	}
 	return clientset, metricsClientset, nil
-}
-
-// ============================================================
-// CHART HELPERS
-// ============================================================
-
-func newBarChart(series []barChartSeries, xLabels []string, title string, yLabel string) *charts.Bar {
-	bar := charts.NewBar()
-	bar.SetGlobalOptions(
-		charts.WithInitializationOpts(opts.Initialization{
-			BackgroundColor: "#f5f5f5",
-			Width:           "700px",
-			Height:          "420px",
-		}),
-		charts.WithTitleOpts(opts.Title{
-			Title: title,
-			Top:   "2%",
-			Left:  "2%",
-		}),
-		charts.WithLegendOpts(opts.Legend{
-			Show:   boolPtr(true),
-			Top:    "10%",
-			Left:   "5%",
-			Right:  "5%",
-			Orient: "horizontal",
-		}),
-		charts.WithTooltipOpts(opts.Tooltip{
-			Show:    boolPtr(true),
-			Trigger: "axis",
-		}),
-		charts.WithYAxisOpts(opts.YAxis{
-			Name:         yLabel,
-			NameLocation: "middle",
-			NameGap:      50,
-		}),
-		charts.WithXAxisOpts(opts.XAxis{
-			AxisLabel: &opts.AxisLabel{
-				Rotate:   20,
-				Interval: "0",
-			},
-		}),
-		charts.WithGridOpts(opts.Grid{
-			Top:    "28%",
-			Bottom: "20%",
-		}),
-		charts.WithDataZoomOpts(opts.DataZoom{
-			Type:       "inside",
-			Start:      0,
-			End:        100,
-			XAxisIndex: []int{0},
-		}),
-	)
-
-	bar.SetXAxis(xLabels)
-
-	for i, s := range series {
-		color := barColors[i%len(barColors)]
-		barData := make([]opts.BarData, len(s.values))
-		for j, v := range s.values {
-			barData[j] = opts.BarData{Value: roundVal(v)}
-		}
-		bar.AddSeries(s.name, barData,
-			charts.WithItemStyleOpts(opts.ItemStyle{Color: color}),
-			charts.WithLabelOpts(opts.Label{Show: boolPtr(false)}),
-		)
-	}
-
-	return bar
-}
-
-func barBodySnippet(bars ...*charts.Bar) (string, string) {
-	var scriptTag string
-	var snippets []string
-
-	for _, b := range bars {
-		if b == nil {
-			continue
-		}
-		page := components.NewPage()
-		page.AddCharts(b)
-		var buf strings.Builder
-		if err := page.Render(&buf); err != nil {
-			continue
-		}
-		raw := buf.String()
-
-		if scriptTag == "" {
-			if i := strings.Index(raw, `<script src="`); i != -1 {
-				if j := strings.Index(raw[i:], `></script>`); j != -1 {
-					scriptTag = raw[i : i+j+len(`></script>`)]
-				}
-			}
-		}
-
-		if i := strings.Index(raw, "<body>"); i != -1 {
-			if j := strings.LastIndex(raw, "</body>"); j != -1 {
-				snippets = append(snippets, raw[i+len("<body>"):j])
-			}
-		}
-	}
-
-	if len(snippets) == 0 {
-		return "", ""
-	}
-
-	var body strings.Builder
-	body.WriteString(`<div style="display: flex; flex-wrap: wrap; gap: 20px; margin-top: 20px;">`)
-	for _, s := range snippets {
-		body.WriteString(`<div style="flex: 1; min-width: 420px;">`)
-		body.WriteString(s)
-		body.WriteString(`</div>`)
-	}
-	body.WriteString(`</div>`)
-
-	return scriptTag, body.String()
-}
-
-// ============================================================
-// HTML RENDERER
-// ============================================================
-
-func renderHTML(sections []htmlSection, filename string, chartHead string, chartBody string) {
-	var sb strings.Builder
-
-	sb.WriteString(`<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Kram - Kubernetes Resource Metrics</title>
-`)
-	if chartHead != "" {
-		sb.WriteString("  " + chartHead + "\n")
-	}
-	sb.WriteString(`  <style>
-    body { font-family: monospace; background: #f5f5f5; color: #1e1e1e; padding: 20px; }
-    h1 { color: #1a56a0; }
-    h2 { color: #1a56a0; margin-top: 30px; }
-    .table-wrapper { overflow-x: auto; margin-bottom: 30px; }
-    table { border-collapse: collapse; white-space: nowrap; min-width: 100%; }
-    th { background: #1a56a0; color: #ffffff; padding: 8px 14px; border: 1px solid #c0c0c0; text-align: left; }
-    td { padding: 6px 14px; border: 1px solid #d0d0d0; }
-    tr:nth-child(even) td { background: #eaf1fb; }
-    tr:nth-child(odd) td { background: #ffffff; }
-    tr:last-child td { background: #d4edda; color: #1a6b2e; font-weight: bold; }
-  </style>
-</head>
-<body>
-  <h1>Kram - Kubernetes Resource Metrics</h1>
-`)
-
-	for _, section := range sections {
-		sb.WriteString(fmt.Sprintf("  <h2>%s</h2>\n  <div class=\"table-wrapper\">\n  <table>\n", section.Title))
-		for i, row := range section.Data {
-			if i == 0 {
-				sb.WriteString("    <thead><tr>")
-				for _, cell := range row {
-					sb.WriteString(fmt.Sprintf("<th>%s</th>", cell))
-				}
-				sb.WriteString("</tr></thead>\n    <tbody>\n")
-			} else {
-				sb.WriteString("    <tr>")
-				for _, cell := range row {
-					sb.WriteString(fmt.Sprintf("<td>%s</td>", cell))
-				}
-				sb.WriteString("</tr>\n")
-			}
-		}
-		sb.WriteString("    </tbody>\n  </table>\n  </div>\n")
-	}
-
-	if chartBody != "" {
-		sb.WriteString(chartBody)
-	}
-
-	sb.WriteString("</body>\n</html>")
-
-	if err := os.WriteFile(filename, []byte(sb.String()), 0644); err != nil {
-		pterm.Error.Println("Cannot write HTML file:", err)
-		os.Exit(1)
-	}
-
-	pterm.Success.Println("HTML report generated:", filename)
-	openBrowser(filename)
 }
 
 // ============================================================
@@ -339,25 +163,47 @@ func listNamespaceMetrics(namespaces []corev1.Namespace, clientset *kubernetes.C
 	var totalCPUUsage, totalCPURequest, totalCPULimit int64
 	var totalMemUsage, totalMemRequest, totalMemLimit int64
 
+	// Thread-safe synchronization for parallel processing
+	var mu sync.Mutex
+	var wg sync.WaitGroup
+	wg.Add(len(namespaces))
+
 	for _, namespace := range namespaces {
-		bar.Increment()
+		go func(ns corev1.Namespace) {
+			defer wg.Done()
+			defer func() {
+				bar.Increment()
+			}()
 
-		pods, err := clientset.CoreV1().Pods(namespace.Name).List(context.TODO(), metav1.ListOptions{})
-		if err != nil {
-			*errorsList = append(*errorsList, err)
-		}
+			var pods *corev1.PodList
+			err := suppressKubernetesLogs(func() error {
+				var e error
+				pods, e = clientset.CoreV1().Pods(ns.Name).List(context.TODO(), metav1.ListOptions{})
+				return e
+			})
+			if err != nil {
+				mu.Lock()
+				*errorsList = append(*errorsList, err)
+				mu.Unlock()
+				return
+			}
 
-		if len(pods.Items) != 0 {
+			if len(pods.Items) == 0 {
+				return
+			}
+
 			var nsCPUUsage, nsCPURequest, nsCPULimit int64
 			var nsMemUsage, nsMemRequest, nsMemLimit int64
-			totalPods += len(pods.Items)
+
+			// Fetch all metrics for namespace at once (1 API call instead of N)
+			metricsMap := getNamespacePodMetricsMap(context.TODO(), metricsClientset, ns.Name, errorsList, &mu)
 
 			for _, pod := range pods.Items {
-				podMetrics, err := metricsClientset.MetricsV1beta1().PodMetricses(namespace.Name).Get(context.TODO(), pod.Name, metav1.GetOptions{})
-				if err != nil {
-					*errorsList = append(*errorsList, err)
+				podMetrics, ok := metricsMap[pod.Name]
+				if !ok {
 					continue
 				}
+
 				for _, container := range pod.Spec.Containers {
 					for _, containerMetrics := range podMetrics.Containers {
 						if containerMetrics.Name == container.Name {
@@ -372,8 +218,9 @@ func listNamespaceMetrics(namespaces []corev1.Namespace, clientset *kubernetes.C
 				}
 			}
 
+			mu.Lock()
 			podTableData = append(podTableData, []string{
-				namespace.Name,
+				ns.Name,
 				pterm.Sprint(len(pods.Items)),
 				pterm.Sprintf("%d m", nsCPUUsage),
 				pterm.Sprintf("%d m", nsCPURequest),
@@ -383,6 +230,7 @@ func listNamespaceMetrics(namespaces []corev1.Namespace, clientset *kubernetes.C
 				fmt.Sprintf("%.1f MiB", toMiB(nsMemLimit)),
 			})
 
+			totalPods += len(pods.Items)
 			totalCPUUsage += nsCPUUsage
 			totalCPURequest += nsCPURequest
 			totalCPULimit += nsCPULimit
@@ -390,13 +238,16 @@ func listNamespaceMetrics(namespaces []corev1.Namespace, clientset *kubernetes.C
 			totalMemRequest += nsMemRequest
 			totalMemLimit += nsMemLimit
 
-			nsRawData[namespace.Name] = &nsRawStats{
+			nsRawData[ns.Name] = &nsRawStats{
 				cpuUsage: nsCPUUsage, cpuRequest: nsCPURequest, cpuLimit: nsCPULimit,
 				memUsage: nsMemUsage, memRequest: nsMemRequest, memLimit: nsMemLimit,
 			}
-			nsOrder = append(nsOrder, namespace.Name)
-		}
+			nsOrder = append(nsOrder, ns.Name)
+			mu.Unlock()
+		}(namespace)
 	}
+
+	wg.Wait()
 
 	podTableData = append(podTableData, []string{
 		"Total", pterm.Sprint(totalPods),
@@ -477,18 +328,21 @@ func printNamespaceMetrics(namespace corev1.Namespace, clientset *kubernetes.Cli
 	}
 
 	var podTableData [][]string
-	var podBars []podBarData
+	var podBarsMap map[string]*podBarData = make(map[string]*podBarData)
 	var totalCPUUsage, totalCPURequest, totalCPULimit int64
 	var totalMemUsage, totalMemRequest, totalMemLimit int64
 
 	podTableData = append(podTableData, []string{"Pods", "Container", "CPU Usage", "CPU Request", "CPU Limit", "Mem Usage", "Mem Request", "Mem Limit"})
 
+	// Fetch all metrics for namespace at once (1 API call instead of N)
+	var localMu sync.Mutex
+	metricsMap := getNamespacePodMetricsMap(context.TODO(), metricsClientset, namespace.Name, errorsList, &localMu)
+
 	for _, pod := range pods.Items {
 		bar.Increment()
 
-		podMetrics, err := metricsClientset.MetricsV1beta1().PodMetricses(namespace.Name).Get(context.TODO(), pod.Name, metav1.GetOptions{})
-		if err != nil {
-			*errorsList = append(*errorsList, err)
+		podMetrics, ok := metricsMap[pod.Name]
+		if !ok {
 			continue
 		}
 
@@ -535,28 +389,24 @@ func printNamespaceMetrics(namespace corev1.Namespace, clientset *kubernetes.Cli
 			totalMemRequest += memRequest
 			totalMemLimit += memLimit
 
-			// Agréger par pod pour le chart (somme de tous ses containers)
-			found := false
-			for k, p := range podBars {
-				if p.name == pod.Name {
-					podBars[k].cpuUsage += cpuUsage
-					podBars[k].cpuRequest += cpuRequest
-					podBars[k].cpuLimit += cpuLimit
-					podBars[k].memUsage += memUsage
-					podBars[k].memRequest += memRequest
-					podBars[k].memLimit += memLimit
-					found = true
-					break
-				}
+			// Agréger par pod pour le chart (somme de tous ses containers) - O(1) map lookup
+			if _, ok := podBarsMap[pod.Name]; !ok {
+				podBarsMap[pod.Name] = &podBarData{name: pod.Name}
 			}
-			if !found {
-				podBars = append(podBars, podBarData{
-					name:     pod.Name,
-					cpuUsage: cpuUsage, cpuRequest: cpuRequest, cpuLimit: cpuLimit,
-					memUsage: memUsage, memRequest: memRequest, memLimit: memLimit,
-				})
-			}
+			p := podBarsMap[pod.Name]
+			p.cpuUsage += cpuUsage
+			p.cpuRequest += cpuRequest
+			p.cpuLimit += cpuLimit
+			p.memUsage += memUsage
+			p.memRequest += memRequest
+			p.memLimit += memLimit
 		}
+	}
+
+	// Convert map to ordered slice for rendering
+	var podBars []podBarData
+	for _, p := range podBarsMap {
+		podBars = append(podBars, *p)
 	}
 
 	podTableData = append(podTableData, []string{
@@ -625,7 +475,12 @@ func listNodeMetrics(namespaces []corev1.Namespace, clientset *kubernetes.Client
 	podsByNamespace := make(map[string][]corev1.Pod)
 	totalPods := 0
 	for _, namespace := range namespaces {
-		pods, err := clientset.CoreV1().Pods(namespace.Name).List(context.TODO(), metav1.ListOptions{})
+		var pods *corev1.PodList
+		err := suppressKubernetesLogs(func() error {
+			var e error
+			pods, e = clientset.CoreV1().Pods(namespace.Name).List(context.TODO(), metav1.ListOptions{})
+			return e
+		})
 		if err != nil {
 			*errorsList = append(*errorsList, err)
 			continue
@@ -643,42 +498,61 @@ func listNodeMetrics(namespaces []corev1.Namespace, clientset *kubernetes.Client
 		WithRemoveWhenDone().
 		Start()
 
+	// Thread-safe synchronization for parallel processing
+	var mu sync.Mutex
+	var wg sync.WaitGroup
+	wg.Add(len(podsByNamespace))
+
 	for namespaceName, pods := range podsByNamespace {
-		nsNodeStats[namespaceName] = make(map[string]*resourceStats)
+		go func(ns string, nsPods []corev1.Pod) {
+			defer wg.Done()
 
-		for _, pod := range pods {
-			bar.Increment()
+			nsLocalStats := make(map[string]*resourceStats)
 
-			nodeName := pod.Spec.NodeName
-			nodeSet[nodeName] = struct{}{}
+			// Fetch all metrics for namespace at once (1 API call instead of N)
+			metricsMap := getNamespacePodMetricsMap(context.TODO(), metricsClientset, ns, errorsList, &mu)
 
-			if _, ok := nsNodeStats[namespaceName][nodeName]; !ok {
-				nsNodeStats[namespaceName][nodeName] = &resourceStats{}
-			}
-			stats := nsNodeStats[namespaceName][nodeName]
+			for _, pod := range nsPods {
+				bar.Increment()
 
-			podMetrics, err := metricsClientset.MetricsV1beta1().PodMetricses(namespaceName).Get(context.TODO(), pod.Name, metav1.GetOptions{})
-			if err != nil {
-				*errorsList = append(*errorsList, err)
-				continue
-			}
+				nodeName := pod.Spec.NodeName
 
-			for _, containerMetrics := range podMetrics.Containers {
-				stats.memUsage += containerMetrics.Usage.Memory().Value()
-				stats.cpuUsage += containerMetrics.Usage.Cpu().MilliValue()
+				if _, ok := nsLocalStats[nodeName]; !ok {
+					nsLocalStats[nodeName] = &resourceStats{}
+				}
+				stats := nsLocalStats[nodeName]
 
-				for _, containerSpec := range pod.Spec.Containers {
-					if containerSpec.Name == containerMetrics.Name {
-						stats.memRequest += containerSpec.Resources.Requests.Memory().Value()
-						stats.memLimit += containerSpec.Resources.Limits.Memory().Value()
-						stats.cpuRequest += containerSpec.Resources.Requests.Cpu().MilliValue()
-						stats.cpuLimit += containerSpec.Resources.Limits.Cpu().MilliValue()
-						break
+				podMetrics, ok := metricsMap[pod.Name]
+				if !ok {
+					continue
+				}
+
+				for _, containerMetrics := range podMetrics.Containers {
+					stats.memUsage += containerMetrics.Usage.Memory().Value()
+					stats.cpuUsage += containerMetrics.Usage.Cpu().MilliValue()
+
+					for _, containerSpec := range pod.Spec.Containers {
+						if containerSpec.Name == containerMetrics.Name {
+							stats.memRequest += containerSpec.Resources.Requests.Memory().Value()
+							stats.memLimit += containerSpec.Resources.Limits.Memory().Value()
+							stats.cpuRequest += containerSpec.Resources.Requests.Cpu().MilliValue()
+							stats.cpuLimit += containerSpec.Resources.Limits.Cpu().MilliValue()
+							break
+						}
 					}
 				}
 			}
-		}
+
+			mu.Lock()
+			nsNodeStats[ns] = nsLocalStats
+			for nodeName := range nsLocalStats {
+				nodeSet[nodeName] = struct{}{}
+			}
+			mu.Unlock()
+		}(namespaceName, pods)
 	}
+
+	wg.Wait()
 
 	nodes := make([]string, 0, len(nodeSet))
 	for node := range nodeSet {
@@ -830,7 +704,12 @@ func listNodeMetrics(namespaces []corev1.Namespace, clientset *kubernetes.Client
 // ============================================================
 
 func listPodNodeMetrics(namespace corev1.Namespace, clientset *kubernetes.Clientset, metricsClientset *metricsv.Clientset, onlyCPU bool, onlyRAM bool, outputFormat string, errorsList *[]error) {
-	pods, err := clientset.CoreV1().Pods(namespace.Name).List(context.TODO(), metav1.ListOptions{})
+	var pods *corev1.PodList
+	err := suppressKubernetesLogs(func() error {
+		var e error
+		pods, e = clientset.CoreV1().Pods(namespace.Name).List(context.TODO(), metav1.ListOptions{})
+		return e
+	})
 	if err != nil {
 		pterm.Error.WithShowLineNumber(true).Println(err)
 		os.Exit(1)
@@ -857,6 +736,10 @@ func listPodNodeMetrics(namespace corev1.Namespace, clientset *kubernetes.Client
 	var podStatsList []podStats
 	var podNames []string
 
+	// Fetch all metrics for namespace at once (1 API call instead of N)
+	var localMu sync.Mutex
+	metricsMap := getNamespacePodMetricsMap(context.TODO(), metricsClientset, namespace.Name, errorsList, &localMu)
+
 	for _, pod := range pods.Items {
 		bar.Increment()
 
@@ -865,9 +748,8 @@ func listPodNodeMetrics(namespace corev1.Namespace, clientset *kubernetes.Client
 
 		stats := podStats{nodeName: nodeName}
 
-		podMetrics, err := metricsClientset.MetricsV1beta1().PodMetricses(namespace.Name).Get(context.TODO(), pod.Name, metav1.GetOptions{})
-		if err != nil {
-			*errorsList = append(*errorsList, err)
+		podMetrics, ok := metricsMap[pod.Name]
+		if !ok {
 			continue
 		}
 
